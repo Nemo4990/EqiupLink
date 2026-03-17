@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import ProtectedRoute from './components/ui/ProtectedRoute';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Clock } from 'lucide-react';
 
 import Landing from './pages/Landing';
 import Login from './pages/auth/Login';
@@ -31,29 +31,53 @@ import Search from './pages/Search';
 import SubscriptionPage from './pages/subscription/Subscription';
 import WalletPage from './pages/wallet/Wallet';
 import Commissions from './pages/commissions/Commissions';
+import ActiveSessions from './pages/security/ActiveSessions';
 
-function IdleWarningBanner() {
-  const { idleWarning, resetIdleTimer, signOut } = useAuth();
+function IdleWarningModal() {
+  const { idleWarning, idleSecondsLeft, resetIdleTimer, signOut } = useAuth();
   if (!idleWarning) return null;
+
+  const minutes = Math.floor(idleSecondsLeft / 60);
+  const seconds = idleSecondsLeft % 60;
+  const timeStr = minutes > 0
+    ? `${minutes}:${seconds.toString().padStart(2, '0')}`
+    : `${idleSecondsLeft}s`;
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-orange-900/95 border-t border-orange-700 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
-        <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0" />
-        <p className="text-white text-sm font-medium">You've been idle for a while. You'll be logged out in 2 minutes.</p>
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={resetIdleTimer}
-          className="bg-orange-500 hover:bg-orange-400 text-white font-semibold text-sm px-4 py-1.5 rounded-lg transition-colors"
-        >
-          Stay Logged In
-        </button>
-        <button
-          onClick={signOut}
-          className="border border-orange-600 hover:border-orange-400 text-orange-300 hover:text-white font-semibold text-sm px-4 py-1.5 rounded-lg transition-colors"
-        >
-          Sign Out Now
-        </button>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-gray-900 border border-orange-800/60 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-12 h-12 bg-orange-900/40 rounded-xl flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-6 h-6 text-orange-400" />
+          </div>
+          <div>
+            <h3 className="text-white font-bold text-lg">Session Expiring</h3>
+            <p className="text-gray-400 text-sm">You've been inactive for a while</p>
+          </div>
+        </div>
+
+        <div className="bg-orange-950/40 border border-orange-900/50 rounded-xl p-4 mb-5 text-center">
+          <p className="text-gray-300 text-sm mb-2">You'll be signed out in</p>
+          <div className="flex items-center justify-center gap-2">
+            <Clock className="w-5 h-5 text-orange-400" />
+            <span className="text-3xl font-black text-orange-400 tabular-nums">{timeStr}</span>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={signOut}
+            className="flex-1 border border-gray-700 hover:border-gray-500 text-gray-300 font-semibold text-sm py-2.5 rounded-xl transition-colors"
+          >
+            Sign Out
+          </button>
+          <button
+            onClick={resetIdleTimer}
+            className="flex-1 bg-orange-500 hover:bg-orange-400 text-white font-bold text-sm py-2.5 rounded-xl transition-colors"
+          >
+            Stay Logged In
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -63,7 +87,7 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <Navbar />
-      <IdleWarningBanner />
+      <IdleWarningModal />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -92,6 +116,7 @@ function AppContent() {
         <Route path="/subscription" element={<ProtectedRoute><SubscriptionPage /></ProtectedRoute>} />
         <Route path="/wallet" element={<ProtectedRoute><WalletPage /></ProtectedRoute>} />
         <Route path="/commissions" element={<ProtectedRoute><Commissions /></ProtectedRoute>} />
+        <Route path="/sessions" element={<ProtectedRoute><ActiveSessions /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><Admin /></ProtectedRoute>} />
       </Routes>
       <Footer />

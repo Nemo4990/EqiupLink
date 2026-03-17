@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, MapPin, Phone, Save, Star, Wrench, Package, Truck, Plus, Trash2, FileText, ChevronRight, Camera } from 'lucide-react';
+import { User, MapPin, Phone, Save, Star, Wrench, Package, Truck, Plus, Trash2, FileText, ChevronRight, Camera, Shield } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { MechanicProfile, Machine, Review } from '../../types';
@@ -309,10 +309,18 @@ export default function Profile() {
               </div>
             )}
 
-            <button onClick={saveProfile} disabled={saving}
-              className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 text-gray-900 font-bold px-6 py-3 rounded-xl transition-colors">
-              <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Profile'}
-            </button>
+            <div className="flex items-center gap-3 flex-wrap">
+              <button onClick={saveProfile} disabled={saving}
+                className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 text-gray-900 font-bold px-6 py-3 rounded-xl transition-colors">
+                <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Profile'}
+              </button>
+              <Link
+                to="/sessions"
+                className="flex items-center gap-2 border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white font-semibold px-5 py-3 rounded-xl transition-colors text-sm"
+              >
+                <Shield className="w-4 h-4" /> Security & Sessions
+              </Link>
+            </div>
           </motion.div>
         )}
 

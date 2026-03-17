@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Wallet, WalletTransaction } from '../../types';
 import PaymentModal from '../../components/ui/PaymentModal';
+import ReAuthModal from '../../components/ui/ReAuthModal';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -16,6 +17,7 @@ export default function WalletPage() {
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTopupModal, setShowTopupModal] = useState(false);
+  const [showReAuth, setShowReAuth] = useState(false);
   const [topupAmount, setTopupAmount] = useState(25);
   const [customAmount, setCustomAmount] = useState('');
   const [useCustom, setUseCustom] = useState(false);
@@ -269,7 +271,7 @@ export default function WalletPage() {
               </div>
 
               <button
-                onClick={() => finalAmount && setShowTopupModal(true)}
+                onClick={() => finalAmount && setShowReAuth(true)}
                 disabled={!finalAmount}
                 className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold py-3 rounded-xl text-sm transition-colors"
               >
@@ -298,6 +300,13 @@ export default function WalletPage() {
           </div>
         </div>
       </div>
+
+      <ReAuthModal
+        isOpen={showReAuth}
+        onClose={() => setShowReAuth(false)}
+        onSuccess={() => { setShowReAuth(false); setShowTopupModal(true); }}
+        actionLabel="wallet top-up"
+      />
 
       {showTopupModal && finalAmount && (
         <PaymentModal

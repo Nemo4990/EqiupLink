@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wrench, Mail, Lock, Eye, EyeOff, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Wrench, Mail, Lock, Eye, EyeOff, AlertCircle, ArrowLeft, CheckCircle, ShieldAlert, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -25,6 +25,9 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [rateLimited, setRateLimited] = useState(false);
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
+  const [resetIn, setResetIn] = useState(0);
   const [forgotMode, setForgotMode] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetSent, setResetSent] = useState(false);
@@ -33,14 +36,29 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setRateLimited(false);
     setLoading(true);
-    const { error, profile } = await signIn(email, password);
+    const result = await signIn(email, password);
     setLoading(false);
-    if (error) {
-      setError('Invalid email or password. Please try again.');
+
+    if (result.rateLimited) {
+      setRateLimited(true);
+      setResetIn(result.resetIn ?? 0);
+      setError('');
+      return;
+    }
+
+    if (result.error) {
+      const rem = result.remaining ?? null;
+      setRemainingAttempts(rem);
+      if (rem !== null && rem <= 2) {
+        setError(`Invalid credentials. ${rem} attempt${rem === 1 ? '' : 's'} remaining before temporary lock.`);
+      } else {
+        setError('Invalid email or password. Please try again.');
+      }
     } else {
       toast.success('Welcome back!');
-      const dest = from || (profile?.role ? ROLE_REDIRECT[profile.role] ?? '/dashboard' : '/dashboard');
+      const dest = from || (result.profile?.role ? ROLE_REDIRECT[result.profile.role] ?? '/dashboard' : '/dashboard');
       navigate(dest, { replace: true });
     }
   };
@@ -159,10 +177,28 @@ export default function Login() {
             ) : (
               <motion.div key="login-form" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  {error && (
-                    <div className="flex items-center gap-2 bg-red-900/30 border border-red-800 text-red-400 px-4 py-3 rounded-lg text-sm">
-                      <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                      {error}
+                  {rateLimited && (
+                    <div className="bg-orange-900/30 border border-orange-800 text-orange-300 px-4 py-3 rounded-lg text-sm">
+                      <div className="flex items-center gap-2 mb-1">
+                        <ShieldAlert className="w-4 h-4 flex-shrink-0 text-orange-400" />
+                        <span className="font-semibold text-orange-400">Account temporarily locked</span>
+                      </div>
+                      <p>Too many failed attempts. Please wait before trying again.</p>
+                      {resetIn > 0 && (
+                        <p className="flex items-center gap-1 mt-1 text-orange-400/80 text-xs">
+                          <Clock className="w-3 h-3" /> Resets in approximately {Math.ceil(resetIn / 60)} minute{Math.ceil(resetIn / 60) !== 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {error && !rateLimited && (
+                    <div className={`flex items-start gap-2 px-4 py-3 rounded-lg text-sm border ${
+                      remainingAttempts !== null && remainingAttempts <= 2
+                        ? 'bg-orange-900/30 border-orange-800 text-orange-300'
+                        : 'bg-red-900/30 border-red-800 text-red-400'
+                    }`}>
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>{error}</span>
                     </div>
                   )}
 
@@ -210,10 +246,10 @@ export default function Login() {
 
                   <button
                     type="submit"
-                    disabled={loading}
-                    className="w-full bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 text-gray-900 font-bold py-3 rounded-lg transition-colors mt-2"
+                    disabled={loading || rateLimited}
+                    className="w-full bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 disabled:cursor-not-allowed text-gray-900 font-bold py-3 rounded-lg transition-colors mt-2"
                   >
-                    {loading ? 'Signing in...' : 'Sign In'}
+                    {loading ? 'Signing in...' : rateLimited ? 'Account Locked' : 'Sign In'}
                   </button>
                 </form>
 
