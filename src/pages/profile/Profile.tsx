@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, MapPin, Phone, Save, Star, Wrench, Package, Truck, Plus, Trash2, FileText, ChevronRight } from 'lucide-react';
+import { User, MapPin, Phone, Save, Star, Wrench, Package, Truck, Plus, Trash2, FileText, ChevronRight, Camera } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { MechanicProfile, Machine, Review } from '../../types';
@@ -13,8 +13,11 @@ const SPECIALIZATIONS = ['hydraulics', 'engine', 'electrical', 'transmission', '
 const BRANDS = ['Caterpillar', 'Komatsu', 'John Deere', 'Hitachi', 'Volvo', 'Liebherr', 'JCB', 'Case'];
 
 export default function Profile() {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile?.avatar_url || null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'machines' | 'reviews'>('profile');
 
   const [profileData, setProfileData] = useState({
@@ -95,6 +98,31 @@ export default function Profile() {
     }));
   };
 
+  const uploadAvatar = useCallback(async (file: File) => {
+    if (!user || !profile) return;
+    if (!file.type.startsWith('image/')) { toast.error('Please select an image file.'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB.'); return; }
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${user.id}/avatar/profile.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('listing-photos')
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('listing-photos').getPublicUrl(path);
+      const url = `${data.publicUrl}?t=${Date.now()}`;
+      await supabase.from('profiles').update({ avatar_url: url }).eq('id', profile.id);
+      setAvatarUrl(url);
+      await refreshProfile();
+      toast.success('Profile picture updated!');
+    } catch {
+      toast.error('Failed to upload photo. Please try again.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }, [user, profile, refreshProfile]);
+
   const addMachine = async () => {
     if (!profile || !newMachine.machine_type || !newMachine.machine_model || !newMachine.brand) return;
     setAddingMachine(true);
@@ -124,13 +152,46 @@ export default function Profile() {
   return (
     <div className="min-h-screen bg-gray-950 pt-20 pb-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-gray-900 font-black text-2xl">
-            {profile?.name?.charAt(0)}
+        <div className="flex items-center gap-5 mb-8">
+          <div className="relative flex-shrink-0 group">
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center ring-2 ring-gray-700 group-hover:ring-yellow-400 transition-all">
+              {avatarUrl ? (
+                <img src={avatarUrl} alt={profile?.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-gray-900 font-black text-3xl">{profile?.name?.charAt(0)}</span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={uploadingAvatar}
+              className="absolute bottom-0 right-0 w-7 h-7 bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 rounded-full flex items-center justify-center shadow-lg transition-colors border-2 border-gray-950"
+              title="Change profile picture"
+            >
+              {uploadingAvatar ? (
+                <div className="w-3.5 h-3.5 border border-gray-900 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Camera className="w-3.5 h-3.5 text-gray-900" />
+              )}
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAvatar(f); e.target.value = ''; }}
+            />
           </div>
           <div>
             <h1 className="text-2xl font-black text-white">{profile?.name}</h1>
             <p className="text-gray-400 capitalize">{profile?.role?.replace('_', ' ')}</p>
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              className="text-xs text-yellow-400 hover:text-yellow-300 mt-1 transition-colors"
+            >
+              {uploadingAvatar ? 'Uploading...' : 'Change photo'}
+            </button>
           </div>
         </div>
 
