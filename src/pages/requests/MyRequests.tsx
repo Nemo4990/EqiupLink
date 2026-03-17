@@ -39,13 +39,25 @@ export default function MyRequests() {
   const [connectionFee, setConnectionFee] = useState(20);
   const [unlocking, setUnlocking] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState<{ offerId: string; techName: string; price: number } | null>(null);
+  const [walletBalance, setWalletBalance] = useState(0);
 
   useEffect(() => {
     if (profile) {
       loadSettings();
       fetchRequests();
+      fetchWalletBalance();
     }
   }, [profile]);
+
+  const fetchWalletBalance = async () => {
+    if (!profile) return;
+    const { data } = await supabase
+      .from('wallets')
+      .select('balance')
+      .eq('user_id', profile.id)
+      .maybeSingle();
+    setWalletBalance(data?.balance ?? 0);
+  };
 
   const loadSettings = async () => {
     const { data } = await supabase
@@ -99,8 +111,6 @@ export default function MyRequests() {
     const offer = Object.values(offersMap).flat().find(o => o.id === offerId);
     if (!offer) { setAccepting(null); return; }
 
-    const walletBalance = profile.wallet_balance ?? 0;
-
     if (walletBalance < connectionFee) {
       toast.error(`You need ${connectionFee} ETB to unlock this contact. Please top up your wallet.`);
       setAccepting(null);
@@ -139,6 +149,7 @@ export default function MyRequests() {
 
       await supabase.from('wallets').update({ balance: newBalance }).eq('id', walletData.id);
       await supabase.from('profiles').update({ wallet_balance: newBalance }).eq('id', profile.id);
+      setWalletBalance(newBalance);
 
       await supabase.from('offers').update({ status: 'accepted', is_contact_unlocked: true }).eq('id', offerId);
       await supabase.from('service_requests').update({ status: 'in_progress', accepted_offer_id: offerId }).eq('id', offer.service_request_id);
