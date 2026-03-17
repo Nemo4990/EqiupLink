@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Briefcase, MapPin, Clock, CheckCircle, MessageSquare, Lock,
-  Crown, Wallet, Zap, DollarSign, Send, X, Star, Filter,
+  Crown, Wallet, Zap, DollarSign, Send, X, Filter,
   AlertCircle, ChevronRight
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -51,16 +51,27 @@ export default function Jobs() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [leadPrice, setLeadPrice] = useState(15);
 
+  const [walletBalance, setWalletBalance] = useState(0);
   const isPro = profile?.subscription_tier === 'pro';
-  const walletBalance = profile?.wallet_balance ?? 0;
 
   useEffect(() => {
     if (profile) {
       loadSettings();
       fetchUnlockedIds();
       fetchSubmittedOffers();
+      fetchWalletBalance();
     }
   }, [profile]);
+
+  const fetchWalletBalance = async () => {
+    if (!profile) return;
+    const { data } = await supabase
+      .from('wallets')
+      .select('balance')
+      .eq('user_id', profile.id)
+      .maybeSingle();
+    setWalletBalance(data?.balance ?? 0);
+  };
 
   useEffect(() => {
     if (profile) fetchTabData();
@@ -173,6 +184,7 @@ export default function Jobs() {
       }).eq('id', walletData.id);
 
       await supabase.from('profiles').update({ wallet_balance: newBalance }).eq('id', profile.id);
+      setWalletBalance(newBalance);
       await recordUnlock(requestId, 'wallet', leadPrice, tx?.id);
       await refreshProfile();
     } catch {
@@ -643,17 +655,9 @@ export default function Jobs() {
                           </button>
                         )}
                         {job.status === 'completed' && (
-                          <>
-                            <span className="flex items-center gap-2 text-green-400 text-sm bg-green-900/30 px-3 py-1.5 rounded-lg">
-                              <CheckCircle className="w-4 h-4" /> Completed
-                            </span>
-                            <Link
-                              to={`/review/${job.customer_id}`}
-                              className="flex items-center gap-1.5 text-xs border border-gray-600 text-gray-300 hover:border-yellow-400 hover:text-yellow-400 px-3 py-1.5 rounded-lg transition-colors"
-                            >
-                              <Star className="w-3.5 h-3.5" /> Leave Review
-                            </Link>
-                          </>
+                          <span className="flex items-center gap-2 text-green-400 text-sm bg-green-900/30 px-3 py-1.5 rounded-lg">
+                            <CheckCircle className="w-4 h-4" /> Completed
+                          </span>
                         )}
                       </div>
                     </div>

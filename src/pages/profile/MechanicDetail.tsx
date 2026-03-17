@@ -140,8 +140,9 @@ export default function MechanicDetail() {
               <div className="flex items-center gap-2 mt-1">
                 <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
                 <span className="text-yellow-400 font-semibold">{mechanic.rating.toFixed(1)}</span>
-                <span className="text-gray-500 text-sm">({mechanic.total_reviews} reviews)</span>
+                <span className="text-gray-500 text-sm">({mechanic.total_reviews} {mechanic.total_reviews === 1 ? 'rating' : 'ratings'})</span>
               </div>
+              <p className="text-gray-600 text-xs mt-0.5">Avg. score from last 10 completed jobs</p>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-6">
                 <div className="text-center bg-gray-800 rounded-xl p-3">
@@ -219,7 +220,10 @@ export default function MechanicDetail() {
 
           {reviews.length > 0 && (
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-              <h2 className="text-white font-bold text-lg mb-4">Reviews ({reviews.length})</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-white font-bold text-lg">Owner Ratings ({reviews.length})</h2>
+                <span className="text-gray-600 text-xs">Last 10 jobs weighted</span>
+              </div>
               <div className="space-y-4">
                 {reviews.map(r => (
                   <div key={r.id} className="border-b border-gray-800 last:border-0 pb-4 last:pb-0">

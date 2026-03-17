@@ -391,13 +391,21 @@ export default function MyRequests() {
                                     )}
 
                                     {isAccepted && isContactRevealed && (
-                                      <div className="mt-3 pt-3 border-t border-gray-700 flex items-center gap-2">
+                                      <div className="mt-3 pt-3 border-t border-gray-700 flex items-center gap-2 flex-wrap">
                                         <button
                                           onClick={() => navigate(`/messages?user=${offer.technician_id}`)}
                                           className="flex items-center gap-1.5 border border-gray-600 text-gray-300 hover:border-yellow-400 hover:text-yellow-400 text-xs px-3 py-1.5 rounded-lg transition-colors"
                                         >
                                           <MessageSquare className="w-3.5 h-3.5" /> Message
                                         </button>
+                                        {req.status === 'completed' && (
+                                          <Link
+                                            to={`/review/${offer.technician_id}/${req.id}`}
+                                            className="flex items-center gap-1.5 bg-yellow-400/20 text-yellow-400 border border-yellow-400/40 hover:bg-yellow-400/30 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                                          >
+                                            <Star className="w-3.5 h-3.5" /> Rate Technician
+                                          </Link>
+                                        )}
                                       </div>
                                     )}
                                   </div>

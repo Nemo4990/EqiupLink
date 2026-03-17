@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Star } from 'lucide-react';
+import { ArrowLeft, Star, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Profile } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
@@ -18,19 +18,57 @@ export default function WriteReview() {
   const [rating, setRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
+
+  const isCustomer = currentUser?.role === 'customer' || currentUser?.role === 'owner';
 
   useEffect(() => {
-    if (!mechanicId) return;
-    supabase.from('profiles').select('*').eq('id', mechanicId).maybeSingle()
-      .then(({ data }) => {
-        setMechanic(data as Profile | null);
-        setLoading(false);
-      });
-  }, [mechanicId]);
+    if (!mechanicId || !currentUser) return;
+    Promise.all([
+      supabase.from('profiles').select('*').eq('id', mechanicId).maybeSingle(),
+      supabase
+        .from('reviews')
+        .select('id')
+        .eq('mechanic_id', mechanicId)
+        .eq('reviewer_id', currentUser.id)
+        .eq('breakdown_request_id', requestId || null)
+        .maybeSingle(),
+    ]).then(([{ data: mechanicData }, { data: existingReview }]) => {
+      setMechanic(mechanicData as Profile | null);
+      setAlreadyReviewed(!!existingReview);
+      setLoading(false);
+    });
+  }, [mechanicId, currentUser, requestId]);
+
+  const recalculateRating = async (mechanicUserId: string) => {
+    const { data: lastTen } = await supabase
+      .from('reviews')
+      .select('rating')
+      .eq('mechanic_id', mechanicUserId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (!lastTen || lastTen.length === 0) return;
+
+    const avg = lastTen.reduce((sum, r) => sum + r.rating, 0) / lastTen.length;
+
+    const { count } = await supabase
+      .from('reviews')
+      .select('id', { count: 'exact', head: true })
+      .eq('mechanic_id', mechanicUserId);
+
+    await supabase.from('mechanic_profiles')
+      .update({ rating: parseFloat(avg.toFixed(2)), total_reviews: count ?? lastTen.length })
+      .eq('user_id', mechanicUserId);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !mechanicId || rating === 0) return;
+    if (!isCustomer) {
+      toast.error('Only equipment owners can rate technicians.');
+      return;
+    }
     setSubmitting(true);
 
     const { error } = await supabase.from('reviews').insert({
@@ -42,40 +80,58 @@ export default function WriteReview() {
     });
 
     if (!error) {
-      const { data: reviews } = await supabase
-        .from('reviews')
-        .select('rating')
-        .eq('mechanic_id', mechanicId);
-
-      if (reviews && reviews.length > 0) {
-        const avgRating = reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
-        await supabase.from('mechanic_profiles')
-          .update({ rating: avgRating, total_reviews: reviews.length })
-          .eq('user_id', mechanicId);
-      }
+      await recalculateRating(mechanicId);
 
       await supabase.from('notifications').insert({
         user_id: mechanicId,
         title: 'New Review Received',
-        message: `${currentUser.name} left you a ${rating}-star review`,
+        message: `${currentUser.name} left you a ${rating}-star rating.`,
         type: 'review',
       });
 
-      toast.success('Review submitted! Thank you.');
-      navigate('/dashboard');
+      toast.success('Rating submitted! Thank you.');
+      navigate('/requests');
     } else {
-      toast.error('Failed to submit review.');
+      toast.error('Failed to submit rating.');
     }
     setSubmitting(false);
   };
 
   if (loading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
 
+  if (!isCustomer) {
+    return (
+      <div className="min-h-screen bg-gray-950 pt-20 pb-12 flex items-center justify-center">
+        <div className="text-center px-4">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-white font-bold text-xl mb-2">Not Authorized</h2>
+          <p className="text-gray-400 mb-6">Only equipment owners can rate technicians.</p>
+          <Link to="/dashboard" className="text-yellow-400 hover:text-yellow-300 text-sm">Back to Dashboard</Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (alreadyReviewed) {
+    return (
+      <div className="min-h-screen bg-gray-950 pt-20 pb-12 flex items-center justify-center">
+        <div className="text-center px-4">
+          <Star className="w-16 h-16 text-yellow-400 mx-auto mb-4 fill-yellow-400" />
+          <h2 className="text-white font-bold text-xl mb-2">Already Rated</h2>
+          <p className="text-gray-400 mb-6">You have already submitted a rating for this job.</p>
+          <Link to="/requests" className="text-yellow-400 hover:text-yellow-300 text-sm">Back to My Requests</Link>
+        </div>
+      </div>
+    );
+  }
+
+  const ratingLabels: Record<number, string> = { 1: 'Poor', 2: 'Fair', 3: 'Good', 4: 'Very Good', 5: 'Excellent' };
+
   return (
     <div className="min-h-screen bg-gray-950 pt-20 pb-12">
       <div className="max-w-lg mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Link to="/dashboard" className="flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-6 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+        <Link to="/requests" className="flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-6 transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Back to My Requests
         </Link>
 
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
@@ -84,8 +140,9 @@ export default function WriteReview() {
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-gray-900 font-black text-xl mx-auto mb-3">
                 {mechanic?.name?.charAt(0) || 'M'}
               </div>
-              <h2 className="text-white font-bold text-lg">Review {mechanic?.name}</h2>
-              <p className="text-gray-400 text-sm mt-1">Share your experience with this technician</p>
+              <h2 className="text-white font-bold text-lg">Rate {mechanic?.name}</h2>
+              <p className="text-gray-400 text-sm mt-1">Your rating helps others find the best technicians</p>
+              <p className="text-gray-600 text-xs mt-1">Score is calculated from the last 10 completed jobs</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -111,13 +168,8 @@ export default function WriteReview() {
                     </button>
                   ))}
                 </div>
-                <p className="text-gray-500 text-sm mt-2">
-                  {rating === 0 && 'Select a rating'}
-                  {rating === 1 && 'Poor'}
-                  {rating === 2 && 'Fair'}
-                  {rating === 3 && 'Good'}
-                  {rating === 4 && 'Very Good'}
-                  {rating === 5 && 'Excellent'}
+                <p className="text-gray-500 text-sm mt-2 h-5">
+                  {rating === 0 ? 'Select a rating' : ratingLabels[rating]}
                 </p>
               </div>
 
@@ -133,7 +185,10 @@ export default function WriteReview() {
               </div>
 
               <div className="flex gap-3">
-                <Link to="/dashboard" className="flex-1 text-center border border-gray-700 hover:border-gray-500 text-gray-300 font-semibold py-3 rounded-xl transition-colors">
+                <Link
+                  to="/requests"
+                  className="flex-1 text-center border border-gray-700 hover:border-gray-500 text-gray-300 font-semibold py-3 rounded-xl transition-colors"
+                >
                   Cancel
                 </Link>
                 <button
@@ -141,7 +196,7 @@ export default function WriteReview() {
                   disabled={rating === 0 || submitting}
                   className="flex-1 bg-yellow-400 hover:bg-yellow-300 disabled:bg-gray-800 disabled:text-gray-600 text-gray-900 font-bold py-3 rounded-xl transition-colors"
                 >
-                  {submitting ? 'Submitting...' : 'Submit Review'}
+                  {submitting ? 'Submitting...' : 'Submit Rating'}
                 </button>
               </div>
             </form>
