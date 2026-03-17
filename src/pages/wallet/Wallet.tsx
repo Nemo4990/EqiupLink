@@ -8,7 +8,7 @@ import PaymentModal from '../../components/ui/PaymentModal';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
 
-const TOPUP_AMOUNTS = [10, 25, 50, 100, 200];
+const TOPUP_AMOUNTS = [50, 100, 200, 500, 1000];
 
 export default function WalletPage() {
   const { profile, refreshProfile } = useAuth();
@@ -63,7 +63,7 @@ export default function WalletPage() {
   const getFinalAmount = () => {
     if (useCustom) {
       const val = parseFloat(customAmount);
-      return isNaN(val) || val < 5 ? null : val;
+      return isNaN(val) || val < 50 ? null : val;
     }
     return topupAmount;
   };
@@ -134,7 +134,7 @@ export default function WalletPage() {
               className="bg-white/10 backdrop-blur rounded-2xl p-5"
             >
               <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Available Balance</p>
-              <p className="text-3xl font-bold text-white">${(wallet?.balance ?? 0).toFixed(2)}</p>
+              <p className="text-3xl font-bold text-white">{(wallet?.balance ?? 0).toLocaleString()} ETB</p>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -143,7 +143,7 @@ export default function WalletPage() {
               className="bg-white/10 backdrop-blur rounded-2xl p-5"
             >
               <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Total Purchased</p>
-              <p className="text-3xl font-bold text-green-400">${(wallet?.total_purchased ?? 0).toFixed(2)}</p>
+              <p className="text-3xl font-bold text-green-400">{(wallet?.total_purchased ?? 0).toLocaleString()} ETB</p>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -152,7 +152,7 @@ export default function WalletPage() {
               className="bg-white/10 backdrop-blur rounded-2xl p-5"
             >
               <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Total Spent</p>
-              <p className="text-3xl font-bold text-red-400">${(wallet?.total_spent ?? 0).toFixed(2)}</p>
+              <p className="text-3xl font-bold text-red-400">{(wallet?.total_spent ?? 0).toLocaleString()} ETB</p>
             </motion.div>
           </div>
         </div>
@@ -199,9 +199,9 @@ export default function WalletPage() {
                       <span className={`font-bold text-sm ${
                         tx.type === 'deduction' ? 'text-red-600' : 'text-green-600'
                       }`}>
-                        {tx.type === 'deduction' ? '-' : '+'}${Math.abs(tx.amount).toFixed(2)}
+                        {tx.type === 'deduction' ? '-' : '+'}{Math.abs(tx.amount).toLocaleString()} ETB
                       </span>
-                      <p className="text-gray-400 text-xs mt-0.5">Bal: ${tx.balance_after.toFixed(2)}</p>
+                      <p className="text-gray-400 text-xs mt-0.5">Bal: {tx.balance_after.toLocaleString()} ETB</p>
                     </div>
                   </motion.div>
                 ))}
@@ -223,7 +223,7 @@ export default function WalletPage() {
                         : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
                     }`}
                   >
-                    ${amt}
+                    {amt} ETB
                   </button>
                 ))}
                 <button
@@ -239,18 +239,17 @@ export default function WalletPage() {
               {useCustom && (
                 <div className="mb-4">
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                     <input
                       type="number"
-                      min={5}
+                      min={50}
                       value={customAmount}
                       onChange={(e) => setCustomAmount(e.target.value)}
-                      placeholder="Min $5.00"
-                      className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:border-blue-500"
+                      placeholder="Min 50 ETB"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500"
                     />
                   </div>
-                  {useCustom && customAmount && parseFloat(customAmount) < 5 && (
-                    <p className="text-red-500 text-xs mt-1">Minimum top-up is $5.00</p>
+                  {useCustom && customAmount && parseFloat(customAmount) < 50 && (
+                    <p className="text-red-500 text-xs mt-1">Minimum top-up is 50 ETB</p>
                   )}
                 </div>
               )}
@@ -258,7 +257,7 @@ export default function WalletPage() {
               <div className="bg-gray-50 rounded-xl p-3 mb-4">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Top-up amount</span>
-                  <span className="font-bold text-gray-900">${finalAmount ? finalAmount.toFixed(2) : '—'}</span>
+                  <span className="font-bold text-gray-900">{finalAmount ? `${finalAmount.toLocaleString()} ETB` : '—'}</span>
                 </div>
               </div>
 
@@ -274,7 +273,7 @@ export default function WalletPage() {
                 disabled={!finalAmount}
                 className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold py-3 rounded-xl text-sm transition-colors"
               >
-                Add ${finalAmount ? finalAmount.toFixed(2) : '0.00'} Credits
+                Add {finalAmount ? `${finalAmount.toLocaleString()} ETB` : '0 ETB'} Credits
               </button>
             </div>
 
@@ -304,7 +303,7 @@ export default function WalletPage() {
         <PaymentModal
           feeType="wallet_topup"
           feeAmount={finalAmount}
-          feeLabel={`Wallet Top-Up — $${finalAmount.toFixed(2)}`}
+          feeLabel={`Wallet Top-Up — ${finalAmount.toLocaleString()} ETB`}
           onSuccess={handleTopupSuccess}
           onClose={() => setShowTopupModal(false)}
         />

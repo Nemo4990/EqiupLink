@@ -158,8 +158,8 @@ export default function SubscriptionPage() {
               <div className="mb-6">
                 <span className="text-sm font-medium text-gray-500 uppercase tracking-wide">Free Plan</span>
                 <div className="mt-2 flex items-end gap-1">
-                  <span className="text-4xl font-bold text-gray-900">$0</span>
-                  <span className="text-gray-500 mb-1">/month</span>
+                  <span className="text-4xl font-bold text-gray-900">0</span>
+                  <span className="text-gray-500 mb-1"> ETB/month</span>
                 </div>
                 <p className="mt-2 text-gray-600 text-sm">Get started with basic access</p>
               </div>
@@ -169,7 +169,7 @@ export default function SubscriptionPage() {
                   <p className="text-sm text-gray-700">
                     <span className="font-medium">{freePlan.job_access_limit} job unlocks</span>/month
                     {freePlan.lead_cost_per_job && (
-                      <span className="ml-1">· ${freePlan.lead_cost_per_job} per lead</span>
+                      <span className="ml-1">· {freePlan.lead_cost_per_job} ETB per lead</span>
                     )}
                   </p>
                 </div>
@@ -213,8 +213,8 @@ export default function SubscriptionPage() {
                   <span className="text-sm font-medium text-blue-300 uppercase tracking-wide">Pro Plan</span>
                 </div>
                 <div className="flex items-end gap-1">
-                  <span className="text-4xl font-bold">${proPlan.price_monthly}</span>
-                  <span className="text-blue-300 mb-1">/month</span>
+                  <span className="text-4xl font-bold">{proPlan.price_monthly.toLocaleString()}</span>
+                  <span className="text-blue-300 mb-1"> ETB/month</span>
                 </div>
                 <p className="mt-2 text-blue-200 text-sm">Everything you need to grow</p>
               </div>
@@ -285,7 +285,7 @@ export default function SubscriptionPage() {
         <PaymentModal
           feeType="subscription_upgrade"
           feeAmount={selectedPlan.price_monthly}
-          feeLabel={`Pro Plan - ${selectedPlan.name}`}
+          feeLabel={`Pro Plan — ${selectedPlan.price_monthly.toLocaleString()} ETB/month`}
           onSuccess={handlePaymentSuccess}
           onClose={() => setShowPaymentModal(false)}
         />

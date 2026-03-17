@@ -1,4 +1,4 @@
-export type UserRole = 'owner' | 'mechanic' | 'supplier' | 'rental_provider' | 'admin';
+export type UserRole = 'owner' | 'mechanic' | 'supplier' | 'rental_provider' | 'admin' | 'customer' | 'technician';
 export type SubscriptionTier = 'free' | 'pro';
 
 export interface Profile {
@@ -350,6 +350,72 @@ export interface CustomerContactUnlock {
   unlock_type: 'contact_fee' | 'quote_accepted';
   payment_id: string | null;
   created_at: string;
+}
+
+export type ServiceRequestStatus = 'open' | 'in_progress' | 'completed' | 'cancelled';
+export type ServiceCategory = 'mechanic' | 'electrician' | 'hydraulics' | 'transmission' | 'engine' | 'other';
+
+export interface ServiceRequest {
+  id: string;
+  customer_id: string;
+  title: string;
+  description: string;
+  category: ServiceCategory;
+  location: string;
+  budget: number | null;
+  image_url: string | null;
+  status: ServiceRequestStatus;
+  accepted_offer_id: string | null;
+  created_at: string;
+  updated_at: string;
+  customer?: Profile;
+  offers?: Offer[];
+}
+
+export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+
+export interface Offer {
+  id: string;
+  service_request_id: string;
+  technician_id: string;
+  customer_id: string;
+  price: number;
+  message: string | null;
+  status: OfferStatus;
+  is_contact_unlocked: boolean;
+  created_at: string;
+  updated_at: string;
+  technician?: Profile;
+  service_request?: ServiceRequest;
+}
+
+export interface ActiveJob {
+  id: string;
+  service_request_id: string;
+  offer_id: string;
+  customer_id: string;
+  technician_id: string;
+  agreed_price: number;
+  status: 'accepted' | 'in_progress' | 'completed' | 'disputed';
+  commission_rate: number;
+  commission_amount: number | null;
+  technician_net: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  service_request?: ServiceRequest;
+  customer?: Profile;
+  technician?: Profile;
+}
+
+export interface PlatformSetting {
+  id: string;
+  setting_key: string;
+  setting_value: number;
+  setting_label: string;
+  description: string | null;
+  updated_at: string;
 }
 
 export interface Quote {

@@ -156,7 +156,7 @@ export default function Dashboard() {
                     className="flex items-center gap-2 border border-gray-700 text-gray-300 hover:border-gray-500 hover:text-white font-medium px-3 py-2 rounded-xl transition-colors text-sm"
                   >
                     <Wallet className="w-4 h-4" />
-                    ${(wallet?.balance ?? profile?.wallet_balance ?? 0).toFixed(2)}
+                    {(wallet?.balance ?? profile?.wallet_balance ?? 0).toLocaleString()} ETB
                   </Link>
                   {!isPro && (
                     <Link
@@ -218,7 +218,7 @@ export default function Dashboard() {
                       Add Credits <ArrowRight className="w-3 h-3" />
                     </Link>
                   </div>
-                  <p className="text-lg font-bold text-white">${(wallet?.balance ?? profile?.wallet_balance ?? 0).toFixed(2)}</p>
+                  <p className="text-lg font-bold text-white">{(wallet?.balance ?? profile?.wallet_balance ?? 0).toLocaleString()} ETB</p>
                   <p className="text-gray-500 text-sm mt-0.5">Wallet balance</p>
                 </div>
               )}
@@ -231,8 +231,8 @@ export default function Dashboard() {
                       View <ArrowRight className="w-3 h-3" />
                     </Link>
                   </div>
-                  <p className="text-lg font-bold text-green-400">${totalEarnings.toFixed(2)}</p>
-                  <p className="text-gray-500 text-sm mt-0.5">Net earnings (${totalCommissionPaid.toFixed(2)} commission)</p>
+                  <p className="text-lg font-bold text-green-400">{totalEarnings.toLocaleString()} ETB</p>
+                  <p className="text-gray-500 text-sm mt-0.5">Net earnings ({totalCommissionPaid.toLocaleString()} ETB commission)</p>
                 </div>
               )}
 
@@ -339,8 +339,8 @@ export default function Dashboard() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-green-400 font-bold text-sm">${(c.job_amount - c.commission_amount).toFixed(2)}</p>
-                          <p className="text-gray-600 text-xs">-${c.commission_amount.toFixed(2)} fee</p>
+                          <p className="text-green-400 font-bold text-sm">{(c.job_amount - c.commission_amount).toLocaleString()} ETB</p>
+                          <p className="text-gray-600 text-xs">-{c.commission_amount.toLocaleString()} ETB fee</p>
                         </div>
                       </div>
                     ))}
@@ -385,6 +385,12 @@ export default function Dashboard() {
                 <div className="space-y-2">
                   {isOwner && (
                     <>
+                      <Link to="/requests/new" className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 text-sm py-2 transition-colors font-medium">
+                        <Plus className="w-4 h-4" /> Post Service Request (Free)
+                      </Link>
+                      <Link to="/my-requests" className="flex items-center gap-2 text-gray-300 hover:text-yellow-400 text-sm py-2 transition-colors">
+                        <Briefcase className="w-4 h-4" /> My Service Requests
+                      </Link>
                       <Link to="/breakdown/new" className="flex items-center gap-2 text-gray-300 hover:text-yellow-400 text-sm py-2 transition-colors">
                         <AlertTriangle className="w-4 h-4" /> Post Breakdown Request
                       </Link>

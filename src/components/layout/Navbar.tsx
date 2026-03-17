@@ -66,8 +66,13 @@ export default function Navbar() {
             </Link>
             {user ? (
               <>
-                {profile?.role === 'mechanic' && (
-                  <Link to="/jobs" className="text-gray-300 hover:text-yellow-400 transition-colors p-2">
+                {(profile?.role === 'mechanic' || profile?.role === 'technician') && (
+                  <Link to="/jobs" className="text-gray-300 hover:text-yellow-400 transition-colors p-2" title="Jobs">
+                    <Briefcase className="w-5 h-5" />
+                  </Link>
+                )}
+                {(profile?.role === 'owner' || profile?.role === 'customer') && (
+                  <Link to="/my-requests" className="text-gray-300 hover:text-yellow-400 transition-colors p-2" title="My Requests">
                     <Briefcase className="w-5 h-5" />
                   </Link>
                 )}
@@ -156,8 +161,11 @@ export default function Navbar() {
               {user ? (
                 <>
                   <Link to="/dashboard" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Dashboard</Link>
-                  {profile?.role === 'mechanic' && (
+                  {(profile?.role === 'mechanic' || profile?.role === 'technician') && (
                     <Link to="/jobs" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Jobs</Link>
+                  )}
+                  {(profile?.role === 'owner' || profile?.role === 'customer') && (
+                    <Link to="/my-requests" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">My Requests</Link>
                   )}
                   <Link to="/messages" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Messages</Link>
                   <button onClick={() => { handleSignOut(); setMenuOpen(false); }} className="block text-red-400 py-2 text-sm font-medium">Sign Out</button>

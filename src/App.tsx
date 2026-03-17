@@ -24,6 +24,8 @@ import NewPartListing from './pages/listings/NewPartListing';
 import NewRentalListing from './pages/listings/NewRentalListing';
 import MachineDetail from './pages/machines/MachineDetail';
 import Jobs from './pages/jobs/Jobs';
+import PostServiceRequest from './pages/requests/PostServiceRequest';
+import MyRequests from './pages/requests/MyRequests';
 import WriteReview from './pages/reviews/WriteReview';
 import Search from './pages/Search';
 import SubscriptionPage from './pages/subscription/Subscription';
@@ -81,6 +83,8 @@ function AppContent() {
         <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
         <Route path="/machine/:machineId" element={<ProtectedRoute><MachineDetail /></ProtectedRoute>} />
         <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
+        <Route path="/requests/new" element={<ProtectedRoute><PostServiceRequest /></ProtectedRoute>} />
+        <Route path="/my-requests" element={<ProtectedRoute><MyRequests /></ProtectedRoute>} />
         <Route path="/review/:mechanicId" element={<ProtectedRoute><WriteReview /></ProtectedRoute>} />
         <Route path="/review/:mechanicId/:requestId" element={<ProtectedRoute><WriteReview /></ProtectedRoute>} />
         <Route path="/listings/new-part" element={<ProtectedRoute requiredRole="supplier"><NewPartListing /></ProtectedRoute>} />

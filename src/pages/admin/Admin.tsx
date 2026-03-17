@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Users, Package, Truck, AlertTriangle, CheckCircle, XCircle, Activity, BarChart3, CreditCard, DollarSign, Clock, Plus, Trash2, Pencil, X, Save, Mail, Phone, MapPin, Globe, TrendingUp, Crown, Wallet, PercentSquare } from 'lucide-react';
+import { Shield, Users, Package, Truck, AlertTriangle, CheckCircle, XCircle, Activity, BarChart3, CreditCard, DollarSign, Clock, Plus, Trash2, Pencil, X, Save, Mail, Phone, MapPin, Globe, TrendingUp, Crown, Wallet, PercentSquare, Settings } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { Profile, BreakdownRequest, UserPayment, PaymentMethod, Commission, Subscription, SubscriptionPlan } from '../../types';
+import { Profile, BreakdownRequest, UserPayment, PaymentMethod, Commission, Subscription, SubscriptionPlan, PlatformSetting } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import AdminListings from './AdminListings';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 
-type AdminTab = 'overview' | 'users' | 'payments' | 'payment_methods' | 'subscriptions' | 'commissions' | 'breakdowns' | 'listings' | 'site_stats' | 'contact';
+type AdminTab = 'overview' | 'users' | 'payments' | 'payment_methods' | 'subscriptions' | 'commissions' | 'breakdowns' | 'listings' | 'site_stats' | 'contact' | 'platform_settings';
 
 interface ContactSettings {
   id: string;
@@ -57,6 +57,9 @@ export default function Admin() {
   const [contactSettings, setContactSettings] = useState<ContactSettings | null>(null);
   const [contactForm, setContactForm] = useState({ email: '', phone: '', address: '', facebook_url: '', twitter_url: '', linkedin_url: '' });
   const [savingContact, setSavingContact] = useState(false);
+  const [platformSettings, setPlatformSettings] = useState<PlatformSetting[]>([]);
+  const [platformSettingsForm, setPlatformSettingsForm] = useState<Record<string, string>>({});
+  const [savingPlatformSettings, setSavingPlatformSettings] = useState(false);
   const [siteStatsList, setSiteStatsList] = useState<SiteStat[]>([]);
   const [showStatForm, setShowStatForm] = useState(false);
   const [editingStat, setEditingStat] = useState<SiteStat | null>(null);
@@ -81,6 +84,7 @@ export default function Admin() {
       { data: commissionsData },
       { data: subscriptionsData },
       { data: subPlansData },
+      { data: platformSettingsData },
     ] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('breakdown_requests')
@@ -102,6 +106,7 @@ export default function Admin() {
         .eq('status', 'active')
         .order('created_at', { ascending: false }),
       supabase.from('subscription_plans').select('*').order('price_monthly'),
+      supabase.from('platform_settings').select('*').order('setting_key'),
     ]);
 
     const allUsers = (usersData || []) as Profile[];
@@ -114,6 +119,11 @@ export default function Admin() {
     setCommissions(allCommissions);
     setSubscriptions((subscriptionsData || []) as Subscription[]);
     setSubPlans((subPlansData || []) as SubscriptionPlan[]);
+    const ps = (platformSettingsData || []) as PlatformSetting[];
+    setPlatformSettings(ps);
+    const psForm: Record<string, string> = {};
+    ps.forEach(s => { psForm[s.setting_key] = String(s.setting_value); });
+    setPlatformSettingsForm(psForm);
     const contactRes = contactData as ContactSettings | null;
     if (contactRes) {
       setContactSettings(contactRes);
@@ -197,7 +207,7 @@ export default function Admin() {
             type: 'purchase',
             amount: paymentAmount,
             balance_after: newBalance,
-            description: `Wallet top-up ($${paymentAmount.toFixed(2)})`,
+            description: `Wallet top-up (${paymentAmount.toLocaleString()} ETB)`,
             payment_id: paymentId,
             status: 'completed',
           });
@@ -205,7 +215,7 @@ export default function Admin() {
           await supabase.from('notifications').insert({
             user_id: userId,
             title: 'Wallet Credited',
-            message: `$${paymentAmount.toFixed(2)} has been added to your wallet.`,
+            message: `${paymentAmount.toLocaleString()} ETB has been added to your wallet.`,
             type: 'wallet',
           });
         }
@@ -468,6 +478,25 @@ export default function Admin() {
     }
   };
 
+  const savePlatformSettings = async () => {
+    setSavingPlatformSettings(true);
+    try {
+      for (const [key, val] of Object.entries(platformSettingsForm)) {
+        const num = parseFloat(val);
+        if (!isNaN(num)) {
+          await supabase.from('platform_settings')
+            .update({ setting_value: num, updated_by: adminProfile?.id, updated_at: new Date().toISOString() })
+            .eq('setting_key', key);
+        }
+      }
+      await loadData();
+      toast.success('Platform settings saved!');
+    } catch {
+      toast.error('Failed to save settings.');
+    }
+    setSavingPlatformSettings(false);
+  };
+
   const TABS: { id: AdminTab; label: string; icon: React.FC<{ className?: string }>; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'users', label: 'Users', icon: Users },
@@ -477,6 +506,7 @@ export default function Admin() {
     { id: 'commissions', label: 'Commissions', icon: PercentSquare },
     { id: 'breakdowns', label: 'Breakdowns', icon: AlertTriangle },
     { id: 'listings', label: 'Listings', icon: Package },
+    { id: 'platform_settings', label: 'Platform Fees', icon: Settings },
     { id: 'site_stats', label: 'Site Stats', icon: TrendingUp },
     { id: 'contact', label: 'Contact Info', icon: Mail },
   ];
@@ -906,9 +936,9 @@ export default function Admin() {
                             <span className="text-xs px-2 py-0.5 bg-blue-900/30 text-blue-400 rounded-full capitalize">{plan.role}</span>
                           </div>
                           <p className="text-gray-400 text-xs mt-0.5">
-                            ${plan.price_monthly}/month
+                            {plan.price_monthly.toLocaleString()} ETB/month
                             {plan.job_access_limit && ` · ${plan.job_access_limit} jobs/month`}
-                            {plan.lead_cost_per_job && ` · $${plan.lead_cost_per_job}/lead`}
+                            {plan.lead_cost_per_job && ` · ${plan.lead_cost_per_job} ETB/lead`}
                           </p>
                         </div>
                       </div>
@@ -1294,6 +1324,66 @@ export default function Admin() {
                         {savingContact ? 'Saving...' : 'Save Contact Info'}
                       </button>
                     </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+            {tab === 'platform_settings' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 bg-yellow-400/10 rounded-xl flex items-center justify-center">
+                      <Settings className="w-5 h-5 text-yellow-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-white font-semibold">Platform Fee Configuration</h3>
+                      <p className="text-gray-400 text-sm mt-0.5">Control all monetization settings — prices in ETB</p>
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-5">
+                    {platformSettings.map(setting => (
+                      <div key={setting.setting_key} className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">
+                        <label className="block text-white font-medium text-sm mb-1">{setting.setting_label}</label>
+                        {setting.description && (
+                          <p className="text-gray-500 text-xs mb-3">{setting.description}</p>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.5}
+                            value={platformSettingsForm[setting.setting_key] ?? ''}
+                            onChange={e => setPlatformSettingsForm(prev => ({ ...prev, [setting.setting_key]: e.target.value }))}
+                            className="flex-1 bg-gray-900 border border-gray-700 focus:border-yellow-400 text-white rounded-lg px-3 py-2.5 text-sm outline-none transition-colors"
+                          />
+                          <span className="text-gray-500 text-sm whitespace-nowrap">
+                            {setting.setting_key.includes('rate') ? '%' : 'ETB'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 bg-blue-950/30 border border-blue-900/40 rounded-xl p-4">
+                    <h4 className="text-blue-300 font-medium text-sm mb-2">How fees work</h4>
+                    <ul className="text-gray-400 text-xs space-y-1.5">
+                      <li>• <strong className="text-gray-300">Lead Price</strong>: Deducted from technician wallet when they unlock a customer contact</li>
+                      <li>• <strong className="text-gray-300">Connection Fee</strong>: Charged to customers when they accept a technician's offer</li>
+                      <li>• <strong className="text-gray-300">Subscription Price</strong>: Monthly Pro plan — technicians skip lead fees entirely</li>
+                      <li>• <strong className="text-gray-300">Commission Rate</strong>: % deducted from agreed job price upon completion</li>
+                    </ul>
+                  </div>
+
+                  <div className="flex justify-end mt-6">
+                    <button
+                      onClick={savePlatformSettings}
+                      disabled={savingPlatformSettings}
+                      className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 text-gray-900 font-semibold px-6 py-2.5 rounded-xl transition-colors"
+                    >
+                      <Save className="w-4 h-4" />
+                      {savingPlatformSettings ? 'Saving...' : 'Save Fee Settings'}
+                    </button>
                   </div>
                 </div>
               </motion.div>
