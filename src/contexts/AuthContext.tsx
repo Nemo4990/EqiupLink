@@ -1,17 +1,22 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { Profile } from '../types';
+
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+const IDLE_WARNING_MS = 2 * 60 * 1000;
 
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, name: string, role: string) => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  idleWarning: boolean;
+  signUp: (email: string, password: string, name: string, role: string) => Promise<{ error: Error | null; needsVerification: boolean }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; profile: Profile | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  resetIdleTimer: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +26,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [idleWarning, setIdleWarning] = useState(false);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
@@ -30,6 +38,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .maybeSingle();
     setProfile(data);
   };
+
+  const doSignOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    setProfile(null);
+    setIdleWarning(false);
+  }, []);
+
+  const resetIdleTimer = useCallback(() => {
+    if (!user) return;
+    setIdleWarning(false);
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    warningTimerRef.current = setTimeout(() => {
+      setIdleWarning(true);
+    }, IDLE_TIMEOUT_MS - IDLE_WARNING_MS);
+    idleTimerRef.current = setTimeout(() => {
+      doSignOut();
+    }, IDLE_TIMEOUT_MS);
+  }, [user, doSignOut]);
+
+  useEffect(() => {
+    if (!user) {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+      setIdleWarning(false);
+      return;
+    }
+    resetIdleTimer();
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    events.forEach(e => window.addEventListener(e, resetIdleTimer, { passive: true }));
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetIdleTimer));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+    };
+  }, [user, resetIdleTimer]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -58,8 +102,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, name: string, role: string) => {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) return { error };
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/dashboard`,
+      },
+    });
+    if (error) return { error, needsVerification: false };
     if (data.user) {
       const { error: profileError } = await supabase.from('profiles').insert({
         id: data.user.id,
@@ -67,19 +117,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         role,
       });
-      if (profileError) return { error: profileError };
+      if (profileError) return { error: profileError, needsVerification: false };
     }
-    return { error: null };
+    const needsVerification = !data.session;
+    return { error: null, needsVerification };
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error as Error | null };
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error as Error | null, profile: null };
+    let fetchedProfile: Profile | null = null;
+    if (data.user) {
+      const { data: p } = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle();
+      fetchedProfile = p as Profile | null;
+    }
+    return { error: null, profile: fetchedProfile };
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setProfile(null);
+    await doSignOut();
   };
 
   const refreshProfile = async () => {
@@ -87,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, session, loading, signUp, signIn, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, session, loading, idleWarning, signUp, signIn, signOut, refreshProfile, resetIdleTimer }}>
       {children}
     </AuthContext.Provider>
   );

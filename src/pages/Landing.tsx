@@ -3,9 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
   Wrench, Package, Truck, AlertTriangle, Star, Shield, Zap, Users,
-  ArrowRight, Search, MessageSquare, Award, ChevronLeft, ChevronRight
+  ArrowRight, Search, MessageSquare, Award, ChevronLeft, ChevronRight,
+  LayoutDashboard, PlusCircle
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 const fadeUp = {
   initial: { opacity: 0, y: 30 },
@@ -212,6 +214,7 @@ const TESTIMONIALS = [
 ];
 
 export default function Landing() {
+  const { user, profile } = useAuth();
   const [slideIndex, setSlideIndex] = useState(0);
   const [siteStats, setSiteStats] = useState(DEFAULT_STATS);
 
@@ -512,22 +515,63 @@ export default function Landing() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4">Ready to Get Started?</h2>
-            <p className="text-gray-300 text-base sm:text-lg mb-8">Join thousands of contractors and service professionals on EquipLink</p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link
-                to="/register"
-                className="flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
-              >
-                <Users className="w-5 h-5" /> Create Free Account
-              </Link>
-              <Link
-                to="/marketplace/mechanics"
-                className="flex items-center justify-center gap-2 border border-gray-600 hover:border-yellow-400 text-white hover:text-yellow-400 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
-              >
-                Browse Marketplace <ArrowRight className="w-5 h-5" />
-              </Link>
-            </div>
+            {user ? (
+              <>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4">Welcome Back{profile?.name ? `, ${profile.name.split(' ')[0]}` : ''}!</h2>
+                <p className="text-gray-300 text-base sm:text-lg mb-8">Head to your dashboard or jump straight into the marketplace</p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <Link
+                    to="/dashboard"
+                    className="flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
+                  >
+                    <LayoutDashboard className="w-5 h-5" /> Go to Dashboard
+                  </Link>
+                  {(profile?.role === 'supplier') && (
+                    <Link
+                      to="/listings/new-part"
+                      className="flex items-center justify-center gap-2 border border-gray-600 hover:border-yellow-400 text-white hover:text-yellow-400 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
+                    >
+                      <PlusCircle className="w-5 h-5" /> List a Part
+                    </Link>
+                  )}
+                  {(profile?.role === 'rental_provider') && (
+                    <Link
+                      to="/listings/new-rental"
+                      className="flex items-center justify-center gap-2 border border-gray-600 hover:border-yellow-400 text-white hover:text-yellow-400 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
+                    >
+                      <PlusCircle className="w-5 h-5" /> List Equipment
+                    </Link>
+                  )}
+                  {(profile?.role !== 'supplier' && profile?.role !== 'rental_provider') && (
+                    <Link
+                      to="/marketplace/mechanics"
+                      className="flex items-center justify-center gap-2 border border-gray-600 hover:border-yellow-400 text-white hover:text-yellow-400 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
+                    >
+                      Browse Marketplace <ArrowRight className="w-5 h-5" />
+                    </Link>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4">Ready to Get Started?</h2>
+                <p className="text-gray-300 text-base sm:text-lg mb-8">Join thousands of contractors and service professionals on EquipLink</p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <Link
+                    to="/register"
+                    className="flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
+                  >
+                    <Users className="w-5 h-5" /> Create Free Account
+                  </Link>
+                  <Link
+                    to="/marketplace/mechanics"
+                    className="flex items-center justify-center gap-2 border border-gray-600 hover:border-yellow-400 text-white hover:text-yellow-400 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
+                  >
+                    Browse Marketplace <ArrowRight className="w-5 h-5" />
+                  </Link>
+                </div>
+              </>
+            )}
           </motion.div>
         </div>
       </section>

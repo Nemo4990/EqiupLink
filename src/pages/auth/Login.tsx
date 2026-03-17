@@ -6,11 +6,19 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
+const ROLE_REDIRECT: Record<string, string> = {
+  mechanic: '/jobs',
+  supplier: '/dashboard',
+  rental_provider: '/dashboard',
+  owner: '/dashboard',
+  admin: '/admin',
+};
+
 export default function Login() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as any)?.from?.pathname || '/dashboard';
+  const from = (location.state as any)?.from?.pathname || null;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,13 +34,14 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { error } = await signIn(email, password);
+    const { error, profile } = await signIn(email, password);
     setLoading(false);
     if (error) {
       setError('Invalid email or password. Please try again.');
     } else {
       toast.success('Welcome back!');
-      navigate(from, { replace: true });
+      const dest = from || (profile?.role ? ROLE_REDIRECT[profile.role] ?? '/dashboard' : '/dashboard');
+      navigate(dest, { replace: true });
     }
   };
 

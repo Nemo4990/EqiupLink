@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Wrench, Mail, Lock, User, Eye, EyeOff, AlertCircle, HardHat, Truck, Package } from 'lucide-react';
+import { Wrench, Mail, Lock, User, Eye, EyeOff, AlertCircle, HardHat, Truck, Package, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -24,6 +24,7 @@ export default function Register() {
   const [role, setRole] = useState(searchParams.get('role') || 'owner');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [verificationSent, setVerificationSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,15 +34,47 @@ export default function Register() {
       return;
     }
     setLoading(true);
-    const { error } = await signUp(email, password, name, role);
+    const { error, needsVerification } = await signUp(email, password, name, role);
     setLoading(false);
     if (error) {
       setError(error.message || 'Registration failed. Please try again.');
+    } else if (needsVerification) {
+      setVerificationSent(true);
     } else {
       toast.success('Account created! Welcome to EquipLink.');
       navigate('/dashboard');
     }
   };
+
+  if (verificationSent) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 py-12">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-md text-center"
+        >
+          <div className="w-20 h-20 bg-green-900/30 border border-green-700/50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="w-10 h-10 text-green-400" />
+          </div>
+          <h1 className="text-3xl font-black text-white mb-3">Check your email</h1>
+          <p className="text-gray-400 text-base leading-relaxed mb-2">
+            We sent a verification link to
+          </p>
+          <p className="text-white font-semibold text-lg mb-6">{email}</p>
+          <p className="text-gray-500 text-sm mb-8">
+            Click the link in the email to verify your account and get started. Check your spam folder if you don't see it.
+          </p>
+          <Link
+            to="/login"
+            className="inline-flex items-center gap-2 text-yellow-400 hover:text-yellow-300 font-medium text-sm transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to Sign In
+          </Link>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 py-12 pt-24">

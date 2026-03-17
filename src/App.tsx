@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import ProtectedRoute from './components/ui/ProtectedRoute';
+import { AlertTriangle } from 'lucide-react';
 
 import Landing from './pages/Landing';
 import Login from './pages/auth/Login';
@@ -29,10 +30,38 @@ import SubscriptionPage from './pages/subscription/Subscription';
 import WalletPage from './pages/wallet/Wallet';
 import Commissions from './pages/commissions/Commissions';
 
+function IdleWarningBanner() {
+  const { idleWarning, resetIdleTimer, signOut } = useAuth();
+  if (!idleWarning) return null;
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-orange-900/95 border-t border-orange-700 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="flex items-center gap-3">
+        <AlertTriangle className="w-5 h-5 text-orange-400 flex-shrink-0" />
+        <p className="text-white text-sm font-medium">You've been idle for a while. You'll be logged out in 2 minutes.</p>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={resetIdleTimer}
+          className="bg-orange-500 hover:bg-orange-400 text-white font-semibold text-sm px-4 py-1.5 rounded-lg transition-colors"
+        >
+          Stay Logged In
+        </button>
+        <button
+          onClick={signOut}
+          className="border border-orange-600 hover:border-orange-400 text-orange-300 hover:text-white font-semibold text-sm px-4 py-1.5 rounded-lg transition-colors"
+        >
+          Sign Out Now
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AppContent() {
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <Navbar />
+      <IdleWarningBanner />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
