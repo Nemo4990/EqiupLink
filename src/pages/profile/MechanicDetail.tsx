@@ -83,14 +83,20 @@ export default function MechanicDetail() {
     }
   };
 
-  const handlePaymentSuccess = async () => {
-    await supabase.from('contact_history').insert({
-      user_id: user!.id,
-      provider_id: userId,
-      contact_type: 'mechanic',
-    });
-    setHasAccess(true);
-    navigate(`/messages?user=${userId}`);
+  const handlePaymentSuccess = async (method?: 'wallet' | 'manual') => {
+    if (method === 'wallet') {
+      await supabase.from('contact_history').insert({
+        user_id: user!.id,
+        provider_id: userId,
+        contact_type: 'mechanic',
+      });
+      setHasAccess(true);
+      setShowPayment(false);
+      navigate(`/messages?user=${userId}`);
+    } else {
+      setPendingPayment(true);
+      setShowPayment(false);
+    }
   };
 
   if (loading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><LoadingSpinner size="lg" /></div>;

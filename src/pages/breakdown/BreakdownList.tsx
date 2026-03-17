@@ -253,9 +253,18 @@ export default function BreakdownList() {
         isOpen={showPayment}
         onClose={() => { setShowPayment(false); setPendingRespondJob(null); }}
         feeType="mechanic_contact"
-        onSuccess={() => {
-          setMechHasPaid(false);
-          setMechPending(true);
+        onSuccess={(method) => {
+          setShowPayment(false);
+          if (method === 'wallet') {
+            setMechHasPaid(true);
+            if (pendingRespondJob) {
+              navigate(`/messages?user=${pendingRespondJob.owner_id}&request=${pendingRespondJob.id}`);
+            }
+          } else {
+            setMechHasPaid(false);
+            setMechPending(true);
+          }
+          setPendingRespondJob(null);
         }}
       />
     </div>
