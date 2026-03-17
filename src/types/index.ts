@@ -418,6 +418,40 @@ export interface PlatformSetting {
   updated_at: string;
 }
 
+export type ForumCategory = 'general' | 'hydraulics' | 'engine' | 'electrical' | 'transmission' | 'diagnostics' | 'tips' | 'tools' | 'other';
+
+export interface ForumPost {
+  id: string;
+  author_id: string;
+  title: string;
+  body: string;
+  category: ForumCategory;
+  tags: string[];
+  view_count: number;
+  reply_count: number;
+  is_pinned: boolean;
+  is_locked: boolean;
+  created_at: string;
+  updated_at: string;
+  author?: Profile;
+  reaction_count?: number;
+  user_reacted?: boolean;
+}
+
+export interface ForumReply {
+  id: string;
+  post_id: string;
+  author_id: string;
+  parent_reply_id: string | null;
+  body: string;
+  is_accepted_answer: boolean;
+  created_at: string;
+  updated_at: string;
+  author?: Profile;
+  reaction_count?: number;
+  user_reacted?: boolean;
+}
+
 export interface Quote {
   id: string;
   breakdown_request_id: string;

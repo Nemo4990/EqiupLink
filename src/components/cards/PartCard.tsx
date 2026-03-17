@@ -29,23 +29,26 @@ export default function PartCard({ part }: Props) {
 
   useEffect(() => {
     if (user) {
-      supabase
-        .from('contact_history')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('provider_id', part.supplier_id)
-        .eq('contact_type', 'supplier')
-        .maybeSingle()
-        .then(({ data }) => setHasAccess(!!data));
-
-      supabase
-        .from('user_payments')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('fee_type', 'parts_inquiry')
-        .eq('status', 'pending')
-        .maybeSingle()
-        .then(({ data }) => setPendingPayment(!!data));
+      Promise.all([
+        supabase
+          .from('contact_history')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('provider_id', part.supplier_id)
+          .eq('contact_type', 'supplier')
+          .maybeSingle(),
+        supabase
+          .from('user_payments')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('fee_type', 'parts_inquiry')
+          .eq('provider_id', part.supplier_id)
+          .eq('status', 'pending')
+          .maybeSingle(),
+      ]).then(([accessRes, pendingRes]) => {
+        setHasAccess(!!accessRes.data);
+        setPendingPayment(!!pendingRes.data);
+      });
     }
   }, [user, part.supplier_id]);
 
@@ -62,9 +65,20 @@ export default function PartCard({ part }: Props) {
     }
   };
 
-  const handlePaymentSuccess = () => {
-    setShowPayment(false);
-    setPendingPayment(true);
+  const handlePaymentSuccess = async (method?: 'wallet' | 'manual') => {
+    if (method === 'wallet') {
+      await supabase.from('contact_history').insert({
+        user_id: user!.id,
+        provider_id: part.supplier_id,
+        contact_type: 'supplier',
+      });
+      setHasAccess(true);
+      setShowPayment(false);
+      navigate(`/messages?user=${part.supplier_id}`);
+    } else {
+      setShowPayment(false);
+      setPendingPayment(true);
+    }
   };
 
   return (

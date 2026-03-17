@@ -58,6 +58,7 @@ export default function Navbar() {
             <Link to="/marketplace/parts" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">Spare Parts</Link>
             <Link to="/marketplace/rentals" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">Rentals</Link>
             <Link to="/breakdown" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">Breakdown Requests</Link>
+            <Link to="/forum" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">Forum</Link>
           </div>
 
           <div className="hidden md:flex items-center gap-3">
@@ -160,6 +161,7 @@ export default function Navbar() {
               <Link to="/marketplace/parts" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Spare Parts</Link>
               <Link to="/marketplace/rentals" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Rentals</Link>
               <Link to="/breakdown" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Breakdown Requests</Link>
+              <Link to="/forum" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Forum</Link>
               <Link to="/search" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Search</Link>
               {user ? (
                 <>

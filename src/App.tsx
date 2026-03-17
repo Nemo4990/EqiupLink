@@ -32,6 +32,9 @@ import SubscriptionPage from './pages/subscription/Subscription';
 import WalletPage from './pages/wallet/Wallet';
 import Commissions from './pages/commissions/Commissions';
 import ActiveSessions from './pages/security/ActiveSessions';
+import ForumList from './pages/forum/ForumList';
+import ForumThread from './pages/forum/ForumThread';
+import NewForumPost from './pages/forum/NewForumPost';
 
 function IdleWarningModal() {
   const { idleWarning, idleSecondsLeft, resetIdleTimer, signOut } = useAuth();
@@ -118,6 +121,9 @@ function AppContent() {
         <Route path="/commissions" element={<ProtectedRoute><Commissions /></ProtectedRoute>} />
         <Route path="/sessions" element={<ProtectedRoute><ActiveSessions /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><Admin /></ProtectedRoute>} />
+        <Route path="/forum" element={<ForumList />} />
+        <Route path="/forum/:postId" element={<ForumThread />} />
+        <Route path="/forum/new" element={<ProtectedRoute><NewForumPost /></ProtectedRoute>} />
       </Routes>
       <Footer />
     </div>
