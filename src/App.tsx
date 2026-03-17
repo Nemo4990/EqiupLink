@@ -25,6 +25,9 @@ import MachineDetail from './pages/machines/MachineDetail';
 import Jobs from './pages/jobs/Jobs';
 import WriteReview from './pages/reviews/WriteReview';
 import Search from './pages/Search';
+import SubscriptionPage from './pages/subscription/Subscription';
+import WalletPage from './pages/wallet/Wallet';
+import Commissions from './pages/commissions/Commissions';
 
 function AppContent() {
   return (
@@ -53,6 +56,9 @@ function AppContent() {
         <Route path="/review/:mechanicId/:requestId" element={<ProtectedRoute><WriteReview /></ProtectedRoute>} />
         <Route path="/listings/new-part" element={<ProtectedRoute requiredRole="supplier"><NewPartListing /></ProtectedRoute>} />
         <Route path="/listings/new-rental" element={<ProtectedRoute requiredRole="rental_provider"><NewRentalListing /></ProtectedRoute>} />
+        <Route path="/subscription" element={<ProtectedRoute><SubscriptionPage /></ProtectedRoute>} />
+        <Route path="/wallet" element={<ProtectedRoute><WalletPage /></ProtectedRoute>} />
+        <Route path="/commissions" element={<ProtectedRoute><Commissions /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><Admin /></ProtectedRoute>} />
       </Routes>
       <Footer />

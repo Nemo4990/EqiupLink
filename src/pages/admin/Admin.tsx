@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Users, Package, Truck, AlertTriangle, CheckCircle, XCircle, Activity, BarChart3, CreditCard, DollarSign, Clock, Plus, Trash2, Pencil, X, Save, Mail, Phone, MapPin, Globe, TrendingUp } from 'lucide-react';
+import { Shield, Users, Package, Truck, AlertTriangle, CheckCircle, XCircle, Activity, BarChart3, CreditCard, DollarSign, Clock, Plus, Trash2, Pencil, X, Save, Mail, Phone, MapPin, Globe, TrendingUp, Crown, Wallet, PercentSquare } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { Profile, BreakdownRequest, UserPayment, PaymentMethod } from '../../types';
+import { Profile, BreakdownRequest, UserPayment, PaymentMethod, Commission, Subscription, SubscriptionPlan } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import AdminListings from './AdminListings';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 
-type AdminTab = 'overview' | 'users' | 'payments' | 'payment_methods' | 'breakdowns' | 'listings' | 'site_stats' | 'contact';
+type AdminTab = 'overview' | 'users' | 'payments' | 'payment_methods' | 'subscriptions' | 'commissions' | 'breakdowns' | 'listings' | 'site_stats' | 'contact';
 
 interface ContactSettings {
   id: string;
@@ -36,8 +36,13 @@ export default function Admin() {
   const [breakdowns, setBreakdowns] = useState<BreakdownRequest[]>([]);
   const [payments, setPayments] = useState<UserPayment[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [stats, setStats] = useState({ users: 0, mechanics: 0, breakdowns: 0, parts: 0, rentals: 0, pendingPayments: 0 });
+  const [commissions, setCommissions] = useState<Commission[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subPlans, setSubPlans] = useState<SubscriptionPlan[]>([]);
+  const [stats, setStats] = useState({ users: 0, mechanics: 0, breakdowns: 0, parts: 0, rentals: 0, pendingPayments: 0, activeSubscriptions: 0, totalCommissions: 0 });
   const [loading, setLoading] = useState(true);
+  const [commissionRate, setCommissionRate] = useState({ min: 5, max: 10 });
+  const [savingCommissionRate, setSavingCommissionRate] = useState(false);
   const [showMethodForm, setShowMethodForm] = useState(false);
   const [editingMethod, setEditingMethod] = useState<PaymentMethod | null>(null);
   const [methodForm, setMethodForm] = useState({
@@ -73,6 +78,9 @@ export default function Admin() {
       methodsRes,
       { data: contactData },
       { data: siteStatsData },
+      { data: commissionsData },
+      { data: subscriptionsData },
+      { data: subPlansData },
     ] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('breakdown_requests')
@@ -86,14 +94,26 @@ export default function Admin() {
       supabase.from('payment_methods').select('*').order('sort_order'),
       supabase.from('contact_settings').select('*').maybeSingle(),
       supabase.from('site_stats').select('*').order('sort_order'),
+      supabase.from('commissions')
+        .select('*, technician:profiles!commissions_technician_id_fkey(name, email), breakdown_request:breakdown_requests(machine_model, location)')
+        .order('created_at', { ascending: false }).limit(50),
+      supabase.from('subscriptions')
+        .select('*, user:profiles!subscriptions_user_id_fkey(name, email, role)')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false }),
+      supabase.from('subscription_plans').select('*').order('price_monthly'),
     ]);
 
     const allUsers = (usersData || []) as Profile[];
     const allPayments = (paymentsData || []) as UserPayment[];
+    const allCommissions = (commissionsData || []) as Commission[];
     setUsers(allUsers);
     setBreakdowns((bds || []) as BreakdownRequest[]);
     setPayments(allPayments);
     setPaymentMethods((methodsRes.data || []) as PaymentMethod[]);
+    setCommissions(allCommissions);
+    setSubscriptions((subscriptionsData || []) as Subscription[]);
+    setSubPlans((subPlansData || []) as SubscriptionPlan[]);
     const contactRes = contactData as ContactSettings | null;
     if (contactRes) {
       setContactSettings(contactRes);
@@ -114,6 +134,8 @@ export default function Admin() {
       parts: partsCount ?? 0,
       rentals: rentalsCount ?? 0,
       pendingPayments: allPayments.filter(p => p.status === 'pending').length,
+      activeSubscriptions: (subscriptionsData || []).length,
+      totalCommissions: allCommissions.reduce((s: number, c: Commission) => s + c.commission_amount, 0),
     });
     setLoading(false);
   };
@@ -151,7 +173,43 @@ export default function Admin() {
       .eq('id', paymentId);
 
     if (!error) {
-      if (payment?.provider_id) {
+      if (feeType === 'subscription_upgrade') {
+        const user = users.find(u => u.id === userId);
+        const subRole = user?.role === 'mechanic' ? 'mechanic' : 'supplier';
+        await activateSubscription(userId, 'pro', subRole, paymentId);
+      } else if (feeType === 'wallet_topup') {
+        const paymentAmount = payment?.amount ?? 0;
+        const { data: walletData } = await supabase
+          .from('wallets')
+          .select('id, balance, total_purchased')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (walletData) {
+          const newBalance = walletData.balance + paymentAmount;
+          await supabase.from('wallets').update({
+            balance: newBalance,
+            total_purchased: walletData.total_purchased + paymentAmount,
+          }).eq('id', walletData.id);
+          await supabase.from('wallet_transactions').insert({
+            wallet_id: walletData.id,
+            user_id: userId,
+            type: 'purchase',
+            amount: paymentAmount,
+            balance_after: newBalance,
+            description: `Wallet top-up ($${paymentAmount.toFixed(2)})`,
+            payment_id: paymentId,
+            status: 'completed',
+          });
+          await supabase.from('profiles').update({ wallet_balance: newBalance }).eq('id', userId);
+          await supabase.from('notifications').insert({
+            user_id: userId,
+            title: 'Wallet Credited',
+            message: `$${paymentAmount.toFixed(2)} has been added to your wallet.`,
+            type: 'wallet',
+          });
+        }
+      } else if (payment?.provider_id) {
         await supabase.from('contact_history').upsert({
           user_id: userId,
           provider_id: payment.provider_id,
@@ -162,16 +220,16 @@ export default function Admin() {
         await supabase.from('notifications').insert({
           user_id: userId,
           title: 'Payment Approved — Contact Unlocked',
-          message: `Your payment has been approved. Tap here to start chatting with your provider.`,
-          type: 'success',
+          message: `Your payment has been approved. You can now contact the provider.`,
+          type: 'payment',
           related_id: payment.provider_id,
         });
       } else {
         await supabase.from('notifications').insert({
           user_id: userId,
           title: 'Payment Approved',
-          message: `Your payment has been approved. You can now contact providers.`,
-          type: 'success',
+          message: `Your payment has been approved.`,
+          type: 'payment',
         });
       }
 
@@ -198,7 +256,7 @@ export default function Admin() {
         user_id: userId,
         title: 'Payment Rejected',
         message: 'Your payment could not be verified. Please contact support.',
-        type: 'warning',
+        type: 'payment',
       });
 
       setPayments(prev => prev.map(p =>
@@ -377,11 +435,46 @@ export default function Admin() {
     setSavingContact(false);
   };
 
-  const TABS: { id: AdminTab; label: string; icon: any; badge?: number }[] = [
+  const updateCommissionStatus = async (commissionId: string, status: 'paid' | 'waived' | 'disputed') => {
+    const { error } = await supabase.from('commissions').update({ status }).eq('id', commissionId);
+    if (!error) {
+      setCommissions(prev => prev.map(c => c.id === commissionId ? { ...c, status } : c));
+      toast.success(`Commission marked as ${status}`);
+    }
+  };
+
+  const activateSubscription = async (userId: string, tier: 'pro', role: string, paymentId?: string) => {
+    const expiresAt = new Date();
+    expiresAt.setMonth(expiresAt.getMonth() + 1);
+    const { error } = await supabase.from('subscriptions').upsert({
+      user_id: userId,
+      tier,
+      role,
+      status: 'active',
+      started_at: new Date().toISOString(),
+      expires_at: expiresAt.toISOString(),
+      payment_id: paymentId || null,
+    }, { onConflict: 'user_id,role' });
+    if (!error) {
+      await supabase.from('profiles').update({ subscription_tier: tier }).eq('id', userId);
+      await supabase.from('notifications').insert({
+        user_id: userId,
+        title: 'Pro Subscription Activated!',
+        message: 'Your Pro subscription is now active. Enjoy unlimited job access and boosted visibility.',
+        type: 'subscription',
+      });
+      toast.success('Subscription activated and user notified');
+      loadData();
+    }
+  };
+
+  const TABS: { id: AdminTab; label: string; icon: React.FC<{ className?: string }>; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'payments', label: 'Payments', icon: CreditCard, badge: stats.pendingPayments },
     { id: 'payment_methods', label: 'Payment Methods', icon: DollarSign },
+    { id: 'subscriptions', label: 'Subscriptions', icon: Crown, badge: stats.activeSubscriptions },
+    { id: 'commissions', label: 'Commissions', icon: PercentSquare },
     { id: 'breakdowns', label: 'Breakdowns', icon: AlertTriangle },
     { id: 'listings', label: 'Listings', icon: Package },
     { id: 'site_stats', label: 'Site Stats', icon: TrendingUp },
@@ -426,13 +519,16 @@ export default function Admin() {
           <>
             {tab === 'overview' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                   {[
                     { label: 'Total Users', value: stats.users, icon: Users, color: 'text-blue-400', bg: 'bg-blue-400/10' },
                     { label: 'Mechanics', value: stats.mechanics, icon: Activity, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+                    { label: 'Pending Payments', value: stats.pendingPayments, icon: CreditCard, color: 'text-red-400', bg: 'bg-red-400/10' },
+                    { label: 'Active Subscriptions', value: stats.activeSubscriptions, icon: Crown, color: 'text-amber-400', bg: 'bg-amber-400/10' },
                     { label: 'Breakdown Requests', value: stats.breakdowns, icon: AlertTriangle, color: 'text-orange-400', bg: 'bg-orange-400/10' },
                     { label: 'Parts Listed', value: stats.parts, icon: Package, color: 'text-green-400', bg: 'bg-green-400/10' },
-                    { label: 'Pending Payments', value: stats.pendingPayments, icon: CreditCard, color: 'text-red-400', bg: 'bg-red-400/10' },
+                    { label: 'Commission Revenue', value: `$${stats.totalCommissions.toFixed(0)}`, icon: TrendingUp, color: 'text-green-400', bg: 'bg-green-400/10' },
+                    { label: 'Rentals Listed', value: stats.rentals, icon: Truck, color: 'text-blue-400', bg: 'bg-blue-400/10' },
                   ].map(stat => (
                     <div key={stat.label} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                       <div className={`w-9 h-9 ${stat.bg} rounded-lg flex items-center justify-center mb-3`}>
@@ -762,6 +858,172 @@ export default function Admin() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {tab === 'subscriptions' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                    <Crown className="w-5 h-5 text-amber-400 mb-2" />
+                    <p className="text-2xl font-black text-amber-400">{stats.activeSubscriptions}</p>
+                    <p className="text-gray-400 text-xs">Active Pro Subscriptions</p>
+                  </div>
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                    <DollarSign className="w-5 h-5 text-green-400 mb-2" />
+                    <p className="text-2xl font-black text-green-400">
+                      ${(subscriptions.reduce((s, sub) => {
+                        const plan = subPlans.find(p => p.tier === sub.tier && p.role === sub.role);
+                        return s + (plan?.price_monthly ?? 0);
+                      }, 0)).toFixed(2)}
+                    </p>
+                    <p className="text-gray-400 text-xs">Monthly Recurring Revenue</p>
+                  </div>
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                    <Users className="w-5 h-5 text-blue-400 mb-2" />
+                    <p className="text-2xl font-black text-blue-400">
+                      {users.filter(u => u.subscription_tier === 'pro').length}
+                    </p>
+                    <p className="text-gray-400 text-xs">Pro Users</p>
+                  </div>
+                </div>
+
+                <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden mb-6">
+                  <div className="px-5 py-4 border-b border-gray-800">
+                    <h3 className="text-white font-semibold">Subscription Plans</h3>
+                  </div>
+                  <div className="divide-y divide-gray-800">
+                    {subPlans.map(plan => (
+                      <div key={plan.id} className="px-5 py-4 flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-white font-medium">{plan.name}</p>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${plan.tier === 'pro' ? 'bg-amber-900/50 text-amber-400' : 'bg-gray-800 text-gray-400'}`}>
+                              {plan.tier}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 bg-blue-900/30 text-blue-400 rounded-full capitalize">{plan.role}</span>
+                          </div>
+                          <p className="text-gray-400 text-xs mt-0.5">
+                            ${plan.price_monthly}/month
+                            {plan.job_access_limit && ` · ${plan.job_access_limit} jobs/month`}
+                            {plan.lead_cost_per_job && ` · $${plan.lead_cost_per_job}/lead`}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                  <div className="px-5 py-4 border-b border-gray-800">
+                    <h3 className="text-white font-semibold">Active Subscriptions</h3>
+                  </div>
+                  {subscriptions.length === 0 ? (
+                    <div className="py-12 text-center">
+                      <Crown className="w-10 h-10 text-gray-700 mx-auto mb-3" />
+                      <p className="text-gray-400">No active subscriptions yet</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-800">
+                      {subscriptions.map(sub => (
+                        <div key={sub.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                          <div>
+                            <p className="text-white font-medium">{(sub as { user?: { name?: string } }).user?.name}</p>
+                            <p className="text-gray-400 text-xs">{(sub as { user?: { email?: string } }).user?.email}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-xs px-2 py-0.5 bg-amber-900/30 text-amber-400 rounded-full capitalize">{sub.tier} · {sub.role}</span>
+                              {sub.expires_at && (
+                                <span className="text-xs text-gray-500">Expires {format(new Date(sub.expires_at), 'MMM d, yyyy')}</span>
+                              )}
+                            </div>
+                          </div>
+                          <span className={`text-xs px-2.5 py-1 rounded-full capitalize ${
+                            sub.status === 'active' ? 'bg-green-900/30 text-green-400' :
+                            sub.status === 'cancelled' ? 'bg-red-900/30 text-red-400' :
+                            'bg-gray-800 text-gray-400'
+                          }`}>
+                            {sub.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 bg-blue-900/10 border border-blue-800/30 rounded-xl p-4 text-sm text-gray-400">
+                  To activate a Pro subscription for a payment: go to Payments tab, approve the subscription_upgrade payment — then manually activate it here if needed.
+                </div>
+              </motion.div>
+            )}
+
+            {tab === 'commissions' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                    <p className="text-2xl font-black text-gray-300">{commissions.length}</p>
+                    <p className="text-gray-400 text-xs">Total Commissions</p>
+                  </div>
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                    <p className="text-2xl font-black text-green-400">${stats.totalCommissions.toFixed(2)}</p>
+                    <p className="text-gray-400 text-xs">Total Commission Revenue</p>
+                  </div>
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                    <p className="text-2xl font-black text-yellow-400">{commissions.filter(c => c.status === 'pending').length}</p>
+                    <p className="text-gray-400 text-xs">Pending</p>
+                  </div>
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                    <p className="text-2xl font-black text-blue-400">{commissions.filter(c => c.status === 'paid').length}</p>
+                    <p className="text-gray-400 text-xs">Paid Out</p>
+                  </div>
+                </div>
+
+                {commissions.length === 0 ? (
+                  <div className="text-center py-16 bg-gray-900 border border-gray-800 rounded-xl">
+                    <TrendingUp className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+                    <p className="text-white font-semibold mb-1">No commissions yet</p>
+                    <p className="text-gray-400 text-sm">Commissions are generated when mechanics complete jobs.</p>
+                  </div>
+                ) : (
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                    <div className="divide-y divide-gray-800">
+                      {commissions.map(c => (
+                        <div key={c.id} className="px-5 py-4 flex items-center justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white font-medium text-sm">
+                              {(c.breakdown_request as { machine_model?: string })?.machine_model || `Job #${c.breakdown_request_id.slice(0, 8)}`}
+                            </p>
+                            <p className="text-gray-400 text-xs">
+                              {(c.technician as { name?: string })?.name} · {c.commission_rate}% ·
+                              {format(new Date(c.created_at), 'MMM d, yyyy')}
+                            </p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-white text-sm font-medium">${c.job_amount.toFixed(2)}</p>
+                            <p className="text-green-400 text-xs">+${c.commission_amount.toFixed(2)} commission</p>
+                          </div>
+                          <div className="flex flex-col gap-1 flex-shrink-0">
+                            <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${
+                              c.status === 'pending' ? 'bg-yellow-900/30 text-yellow-400' :
+                              c.status === 'paid' ? 'bg-green-900/30 text-green-400' :
+                              c.status === 'disputed' ? 'bg-red-900/30 text-red-400' :
+                              'bg-gray-800 text-gray-400'
+                            }`}>{c.status}</span>
+                            {c.status === 'pending' && (
+                              <div className="flex gap-1">
+                                <button onClick={() => updateCommissionStatus(c.id, 'paid')} className="text-xs bg-green-900/30 text-green-400 border border-green-800 px-2 py-0.5 rounded hover:bg-green-900/50 transition-colors">
+                                  Mark Paid
+                                </button>
+                                <button onClick={() => updateCommissionStatus(c.id, 'waived')} className="text-xs bg-gray-800 text-gray-400 border border-gray-700 px-2 py-0.5 rounded hover:bg-gray-700 transition-colors">
+                                  Waive
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </motion.div>

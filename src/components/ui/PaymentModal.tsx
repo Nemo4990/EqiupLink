@@ -7,9 +7,11 @@ import { CommissionFee, PaymentMethod } from '../../types';
 import toast from 'react-hot-toast';
 
 interface Props {
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
-  feeType: 'mechanic_contact' | 'parts_inquiry' | 'rental_inquiry' | 'breakdown_post';
+  feeType: string;
+  feeAmount?: number;
+  feeLabel?: string;
   providerId?: string;
   providerName?: string;
   onSuccess: () => void;
@@ -20,9 +22,12 @@ const FEE_LABELS: Record<string, string> = {
   parts_inquiry: 'Parts Inquiry',
   rental_inquiry: 'Rental Inquiry',
   breakdown_post: 'Post Breakdown Request',
+  subscription_upgrade: 'Subscription Upgrade',
+  wallet_topup: 'Wallet Top-Up',
+  listing_boost: 'Boost Listing',
 };
 
-export default function PaymentModal({ isOpen, onClose, feeType, providerId, providerName, onSuccess }: Props) {
+export default function PaymentModal({ isOpen = true, onClose, feeType, feeAmount: overrideAmount, feeLabel: overrideLabel, providerId, providerName, onSuccess }: Props) {
   const { profile } = useAuth();
   const [fee, setFee] = useState<CommissionFee | null>(null);
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
@@ -31,6 +36,9 @@ export default function PaymentModal({ isOpen, onClose, feeType, providerId, pro
   const [transactionId, setTransactionId] = useState('');
   const [selectedMethod, setSelectedMethod] = useState<string>('');
   const [expandedMethod, setExpandedMethod] = useState<string | null>(null);
+
+  const displayAmount = overrideAmount ?? fee?.fee_amount ?? 0;
+  const displayLabel = overrideLabel ?? FEE_LABELS[feeType] ?? feeType;
 
   useEffect(() => {
     if (isOpen) {
@@ -42,12 +50,14 @@ export default function PaymentModal({ isOpen, onClose, feeType, providerId, pro
       setTransactionId('');
       setSubmitting(false);
       Promise.all([
-        supabase
-          .from('commission_fees')
-          .select('*')
-          .eq('service_type', feeType)
-          .eq('is_active', true)
-          .maybeSingle(),
+        overrideAmount
+          ? Promise.resolve({ data: null })
+          : supabase
+              .from('commission_fees')
+              .select('*')
+              .eq('service_type', feeType)
+              .eq('is_active', true)
+              .maybeSingle(),
         supabase
           .from('payment_methods')
           .select('*')
@@ -72,7 +82,7 @@ export default function PaymentModal({ isOpen, onClose, feeType, providerId, pro
   };
 
   const handleSubmitPayment = async () => {
-    if (!profile || !fee) return;
+    if (!profile || (!fee && !overrideAmount)) return;
     if (!transactionId.trim()) {
       toast.error('Please enter your transaction/reference ID');
       return;
@@ -83,7 +93,7 @@ export default function PaymentModal({ isOpen, onClose, feeType, providerId, pro
     const { data, error } = await supabase.from('user_payments').insert({
       user_id: profile.id,
       fee_type: feeType,
-      amount: fee.fee_amount,
+      amount: displayAmount,
       status: 'pending',
       transaction_id: transactionId.trim(),
       payment_method: method?.method_name || 'manual',
@@ -94,8 +104,8 @@ export default function PaymentModal({ isOpen, onClose, feeType, providerId, pro
       await supabase.from('notifications').insert({
         user_id: profile.id,
         title: 'Payment Submitted',
-        message: `Your payment of $${fee.fee_amount} for ${FEE_LABELS[feeType]} is under review. We'll notify you once approved.`,
-        type: 'info',
+        message: `Your payment of $${displayAmount.toFixed(2)} for ${displayLabel} is under review. We'll notify you once approved.`,
+        type: 'payment',
       });
 
       toast.success('Payment submitted! Awaiting admin approval.');
@@ -141,7 +151,7 @@ export default function PaymentModal({ isOpen, onClose, feeType, providerId, pro
               <div className="flex justify-center py-12">
                 <div className="w-8 h-8 border-2 border-gray-700 border-t-yellow-400 rounded-full animate-spin" />
               </div>
-            ) : !fee ? (
+            ) : (!fee && !overrideAmount) ? (
               <div className="text-center py-12">
                 <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
                 <p className="text-gray-400">Fee configuration not found. Please contact support.</p>
@@ -149,15 +159,15 @@ export default function PaymentModal({ isOpen, onClose, feeType, providerId, pro
             ) : (
               <div className="space-y-5">
                 <div className="bg-gradient-to-br from-yellow-400/10 to-orange-400/5 border border-yellow-400/20 rounded-xl p-4 text-center">
-                  <p className="text-gray-400 text-sm mb-1">{FEE_LABELS[feeType]}</p>
+                  <p className="text-gray-400 text-sm mb-1">{displayLabel}</p>
                   {providerName && (
                     <p className="text-white font-medium text-sm mb-2">For: {providerName}</p>
                   )}
                   <div className="flex items-center justify-center gap-1">
                     <DollarSign className="w-6 h-6 text-yellow-400" />
-                    <span className="text-3xl font-black text-yellow-400">{fee.fee_amount.toFixed(2)}</span>
+                    <span className="text-3xl font-black text-yellow-400">{displayAmount.toFixed(2)}</span>
                   </div>
-                  {fee.description && (
+                  {fee?.description && (
                     <p className="text-gray-500 text-xs mt-2">{fee.description}</p>
                   )}
                 </div>
