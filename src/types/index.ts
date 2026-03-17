@@ -15,6 +15,13 @@ export interface Profile {
   payment_verified: boolean;
   subscription_tier: SubscriptionTier;
   wallet_balance: number;
+  contact_phone: string | null;
+  contact_email: string | null;
+  contact_address: string | null;
+  contact_telegram: string | null;
+  contact_whatsapp: string | null;
+  contact_other: string | null;
+  contact_complete: boolean;
   created_at: string;
   updated_at: string;
 }

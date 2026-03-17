@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Truck, MapPin, MessageSquare, Clock, Calendar, CheckCircle, Lock } from 'lucide-react';
+import { Truck, MapPin, Clock, Calendar, CheckCircle, Lock, PhoneCall } from 'lucide-react';
 import { EquipmentRental } from '../../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import PaymentModal from '../ui/PaymentModal';
+import ContactCard from '../ui/ContactCard';
 
 interface Props {
   rental: EquipmentRental;
@@ -17,45 +18,57 @@ export default function RentalCard({ rental }: Props) {
   const [hasAccess, setHasAccess] = useState(false);
   const [pendingPayment, setPendingPayment] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showContact, setShowContact] = useState(false);
 
   useEffect(() => {
     if (user) {
-      supabase
-        .from('contact_history')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('provider_id', rental.provider_id)
-        .eq('contact_type', 'rental')
-        .maybeSingle()
-        .then(({ data }) => setHasAccess(!!data));
-
-      supabase
-        .from('user_payments')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('fee_type', 'rental_inquiry')
-        .eq('status', 'pending')
-        .maybeSingle()
-        .then(({ data }) => setPendingPayment(!!data));
+      Promise.all([
+        supabase
+          .from('contact_history')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('provider_id', rental.provider_id)
+          .eq('contact_type', 'rental')
+          .maybeSingle(),
+        supabase
+          .from('user_payments')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('fee_type', 'rental_inquiry')
+          .eq('provider_id', rental.provider_id)
+          .eq('status', 'pending')
+          .maybeSingle(),
+      ]).then(([accessRes, pendingRes]) => {
+        setHasAccess(!!accessRes.data);
+        setPendingPayment(!!pendingRes.data);
+      });
     }
   }, [user, rental.provider_id]);
 
   const handleContact = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!user) {
-      navigate('/login');
-      return;
-    }
+    if (!user) { navigate('/login'); return; }
     if (hasAccess || profile?.role === 'admin') {
-      navigate(`/messages?user=${rental.provider_id}`);
+      setShowContact(true);
     } else {
       setShowPayment(true);
     }
   };
 
-  const handlePaymentSuccess = () => {
-    setShowPayment(false);
-    setPendingPayment(true);
+  const handlePaymentSuccess = async (method?: 'wallet' | 'manual') => {
+    if (method === 'wallet') {
+      await supabase.from('contact_history').insert({
+        user_id: user!.id,
+        provider_id: rental.provider_id,
+        contact_type: 'rental',
+      });
+      setHasAccess(true);
+      setShowPayment(false);
+      setShowContact(true);
+    } else {
+      setShowPayment(false);
+      setPendingPayment(true);
+    }
   };
 
   return (
@@ -120,20 +133,20 @@ export default function RentalCard({ rental }: Props) {
         <button
           onClick={handleContact}
           disabled={pendingPayment}
-          className={`mt-3 w-full flex items-center justify-center gap-2 font-semibold text-sm py-2 rounded-lg transition-colors ${
+          className={`mt-3 w-full flex items-center justify-center gap-2 font-semibold text-sm py-2.5 rounded-lg transition-colors ${
             hasAccess
-              ? 'bg-yellow-400 hover:bg-yellow-300 text-gray-900'
+              ? 'bg-green-600 hover:bg-green-500 text-white'
               : pendingPayment
               ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
               : 'bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-400 border border-yellow-400/50'
           }`}
         >
           {hasAccess ? (
-            <><MessageSquare className="w-4 h-4" /> Inquire</>
+            <><PhoneCall className="w-4 h-4" /> View Contact Details</>
           ) : pendingPayment ? (
             <><Clock className="w-4 h-4" /> Pending Approval</>
           ) : (
-            <><Lock className="w-4 h-4" /> Pay to Contact</>
+            <><Lock className="w-4 h-4" /> Unlock Contact</>
           )}
         </button>
       </div>
@@ -146,7 +159,12 @@ export default function RentalCard({ rental }: Props) {
         providerName={rental.provider?.name}
         onSuccess={handlePaymentSuccess}
       />
-
+      <ContactCard
+        isOpen={showContact}
+        onClose={() => setShowContact(false)}
+        providerId={rental.provider_id}
+        providerName={rental.provider?.name}
+      />
     </motion.div>
   );
 }

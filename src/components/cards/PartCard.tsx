@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Package, MessageSquare, Tag, Layers, Lock, Clock } from 'lucide-react';
+import { Package, Tag, Layers, Lock, Clock, PhoneCall } from 'lucide-react';
 import { PartsListing } from '../../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import PaymentModal from '../ui/PaymentModal';
+import ContactCard from '../ui/ContactCard';
 
 interface Props {
   part: PartsListing;
@@ -26,6 +27,7 @@ export default function PartCard({ part }: Props) {
   const [hasAccess, setHasAccess] = useState(false);
   const [pendingPayment, setPendingPayment] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showContact, setShowContact] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -54,12 +56,9 @@ export default function PartCard({ part }: Props) {
 
   const handleContact = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!user) {
-      navigate('/login');
-      return;
-    }
+    if (!user) { navigate('/login'); return; }
     if (hasAccess || profile?.role === 'admin') {
-      navigate(`/messages?user=${part.supplier_id}`);
+      setShowContact(true);
     } else {
       setShowPayment(true);
     }
@@ -74,7 +73,7 @@ export default function PartCard({ part }: Props) {
       });
       setHasAccess(true);
       setShowPayment(false);
-      navigate(`/messages?user=${part.supplier_id}`);
+      setShowContact(true);
     } else {
       setShowPayment(false);
       setPendingPayment(true);
@@ -140,20 +139,20 @@ export default function PartCard({ part }: Props) {
         <button
           onClick={handleContact}
           disabled={pendingPayment}
-          className={`mt-3 w-full flex items-center justify-center gap-2 font-semibold text-sm py-2 rounded-lg transition-colors ${
+          className={`mt-3 w-full flex items-center justify-center gap-2 font-semibold text-sm py-2.5 rounded-lg transition-colors ${
             hasAccess
-              ? 'bg-yellow-400 hover:bg-yellow-300 text-gray-900'
+              ? 'bg-green-600 hover:bg-green-500 text-white'
               : pendingPayment
               ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
               : 'bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-400 border border-yellow-400/50'
           }`}
         >
           {hasAccess ? (
-            <><MessageSquare className="w-4 h-4" /> Contact Supplier</>
+            <><PhoneCall className="w-4 h-4" /> View Contact Details</>
           ) : pendingPayment ? (
             <><Clock className="w-4 h-4" /> Pending Approval</>
           ) : (
-            <><Lock className="w-4 h-4" /> Pay to Contact</>
+            <><Lock className="w-4 h-4" /> Unlock Contact</>
           )}
         </button>
       </div>
@@ -165,6 +164,12 @@ export default function PartCard({ part }: Props) {
         providerId={part.supplier_id}
         providerName={part.supplier?.name}
         onSuccess={handlePaymentSuccess}
+      />
+      <ContactCard
+        isOpen={showContact}
+        onClose={() => setShowContact(false)}
+        providerId={part.supplier_id}
+        providerName={part.supplier?.name}
       />
     </motion.div>
   );

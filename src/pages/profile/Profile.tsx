@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, MapPin, Phone, Save, Star, Wrench, Package, Truck, Plus, Trash2, FileText, ChevronRight, Camera, Shield } from 'lucide-react';
+import { User, MapPin, Phone, Save, Star, Wrench, Plus, Trash2, FileText, ChevronRight, Camera, Shield, Mail, AtSign, AlertCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { MechanicProfile, Machine, Review } from '../../types';
@@ -25,6 +25,15 @@ export default function Profile() {
     phone: profile?.phone || '',
     location: profile?.location || '',
     bio: profile?.bio || '',
+  });
+
+  const [contactData, setContactData] = useState({
+    contact_phone: profile?.contact_phone || '',
+    contact_email: profile?.contact_email || '',
+    contact_address: profile?.contact_address || '',
+    contact_telegram: profile?.contact_telegram || '',
+    contact_whatsapp: profile?.contact_whatsapp || '',
+    contact_other: profile?.contact_other || '',
   });
 
   const [mechanicData, setMechanicData] = useState<Partial<MechanicProfile>>({});
@@ -64,7 +73,12 @@ export default function Profile() {
   const saveProfile = async () => {
     if (!profile) return;
     setSaving(true);
-    const { error } = await supabase.from('profiles').update(profileData).eq('id', profile.id);
+    const contactComplete = !!(contactData.contact_phone || contactData.contact_email) && !!contactData.contact_address;
+    const { error } = await supabase.from('profiles').update({
+      ...profileData,
+      ...contactData,
+      contact_complete: contactComplete,
+    }).eq('id', profile.id);
     if (!error && profile.role === 'mechanic') {
       const exists = !!(await supabase.from('mechanic_profiles').select('id').eq('user_id', profile.id).maybeSingle()).data;
       if (exists) {
@@ -248,6 +262,116 @@ export default function Profile() {
                   className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-2.5 px-3 outline-none resize-none transition-colors" />
               </div>
             </div>
+
+            {(['mechanic', 'supplier', 'rental_provider', 'owner', 'technician'].includes(profile?.role || '')) && (
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-white font-semibold">Contact Information</h3>
+                    <p className="text-gray-500 text-xs mt-0.5">These details are revealed to clients who pay the contact fee. Required before posting listings.</p>
+                  </div>
+                  {contactData.contact_phone || contactData.contact_email ? (
+                    contactData.contact_address ? (
+                      <span className="flex items-center gap-1.5 text-green-400 text-xs font-semibold flex-shrink-0">
+                        <CheckCircle className="w-4 h-4" /> Complete
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5 text-yellow-400 text-xs font-semibold flex-shrink-0">
+                        <AlertCircle className="w-4 h-4" /> Add address
+                      </span>
+                    )
+                  ) : (
+                    <span className="flex items-center gap-1.5 text-orange-400 text-xs font-semibold flex-shrink-0">
+                      <AlertCircle className="w-4 h-4" /> Incomplete
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-1.5">
+                      Business Phone <span className="text-red-400">*</span>
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="tel"
+                        value={contactData.contact_phone}
+                        onChange={(e) => setContactData(p => ({ ...p, contact_phone: e.target.value }))}
+                        placeholder="+251 9XX XXX XXXX"
+                        className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-2.5 pl-10 pr-3 outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-1.5">Business Email</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="email"
+                        value={contactData.contact_email}
+                        onChange={(e) => setContactData(p => ({ ...p, contact_email: e.target.value }))}
+                        placeholder="business@example.com"
+                        className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-2.5 pl-10 pr-3 outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-1.5">
+                    Physical Address / Workshop Location <span className="text-red-400">*</span>
+                  </label>
+                  <textarea
+                    value={contactData.contact_address}
+                    onChange={(e) => setContactData(p => ({ ...p, contact_address: e.target.value }))}
+                    rows={2}
+                    placeholder="e.g. Bole Road, Near Edna Mall, Addis Ababa"
+                    className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-2.5 px-3 outline-none resize-none transition-colors text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-1.5">Telegram</label>
+                    <div className="relative">
+                      <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="text"
+                        value={contactData.contact_telegram}
+                        onChange={(e) => setContactData(p => ({ ...p, contact_telegram: e.target.value }))}
+                        placeholder="@username"
+                        className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-2.5 pl-10 pr-3 outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-1.5">WhatsApp</label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="tel"
+                        value={contactData.contact_whatsapp}
+                        onChange={(e) => setContactData(p => ({ ...p, contact_whatsapp: e.target.value }))}
+                        placeholder="+251 9XX XXX XXXX"
+                        className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-2.5 pl-10 pr-3 outline-none transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-1.5">Other Contact Info</label>
+                  <input
+                    type="text"
+                    value={contactData.contact_other}
+                    onChange={(e) => setContactData(p => ({ ...p, contact_other: e.target.value }))}
+                    placeholder="Any other contact details..."
+                    className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-2.5 px-3 outline-none transition-colors"
+                  />
+                </div>
+              </div>
+            )}
 
             {profile?.role === 'mechanic' && (
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-5">

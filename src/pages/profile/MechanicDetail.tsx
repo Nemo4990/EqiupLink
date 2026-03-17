@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Star, MapPin, Clock, MessageSquare, Wrench, CheckCircle, ArrowLeft, Award, Lock } from 'lucide-react';
+import { Star, MapPin, Clock, Wrench, CheckCircle, ArrowLeft, Award, Lock, PhoneCall } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { MechanicProfile, Review } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import PaymentModal from '../../components/ui/PaymentModal';
+import ContactCard from '../../components/ui/ContactCard';
 import { useAuth } from '../../contexts/AuthContext';
 import { format } from 'date-fns';
 
@@ -26,6 +27,7 @@ export default function MechanicDetail() {
   const [hasAccess, setHasAccess] = useState(false);
   const [pendingPayment, setPendingPayment] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showContact, setShowContact] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -77,7 +79,7 @@ export default function MechanicDetail() {
   const handleContact = () => {
     if (!user) { navigate('/login'); return; }
     if (hasAccess || profile?.role === 'admin') {
-      navigate(`/messages?user=${userId}`);
+      setShowContact(true);
     } else {
       setShowPayment(true);
     }
@@ -92,7 +94,7 @@ export default function MechanicDetail() {
       });
       setHasAccess(true);
       setShowPayment(false);
-      navigate(`/messages?user=${userId}`);
+      setShowContact(true);
     } else {
       setPendingPayment(true);
       setShowPayment(false);
@@ -198,18 +200,18 @@ export default function MechanicDetail() {
                 disabled={pendingPayment}
                 className={`mt-6 w-full flex items-center justify-center gap-2 font-bold py-3 rounded-xl transition-colors ${
                   hasAccess
-                    ? 'bg-yellow-400 hover:bg-yellow-300 text-gray-900'
+                    ? 'bg-green-600 hover:bg-green-500 text-white'
                     : pendingPayment
                     ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
                     : 'bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-400 border border-yellow-400/50'
                 }`}
               >
                 {hasAccess ? (
-                  <><MessageSquare className="w-5 h-5" /> Contact Mechanic</>
+                  <><PhoneCall className="w-5 h-5" /> View Contact Details</>
                 ) : pendingPayment ? (
                   <><Clock className="w-5 h-5" /> Payment Pending Approval</>
                 ) : (
-                  <><Lock className="w-5 h-5" /> Pay to Contact Mechanic</>
+                  <><Lock className="w-5 h-5" /> Unlock Contact</>
                 )}
               </button>
             </div>
@@ -246,6 +248,12 @@ export default function MechanicDetail() {
         providerId={userId}
         providerName={mechanic.profile?.name}
         onSuccess={handlePaymentSuccess}
+      />
+      <ContactCard
+        isOpen={showContact}
+        onClose={() => setShowContact(false)}
+        providerId={userId!}
+        providerName={mechanic.profile?.name}
       />
     </div>
   );
