@@ -187,12 +187,12 @@ export default function Footer() {
             &copy; 2026 EquipLink. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
-            <a href="#" className="text-gray-500 hover:text-yellow-400 text-sm transition-colors duration-150">
+            <Link to="/privacy" className="text-gray-500 hover:text-yellow-400 text-sm transition-colors duration-150">
               Privacy Policy
-            </a>
-            <a href="#" className="text-gray-500 hover:text-yellow-400 text-sm transition-colors duration-150">
+            </Link>
+            <Link to="/terms" className="text-gray-500 hover:text-yellow-400 text-sm transition-colors duration-150">
               Terms of Service
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -205,9 +205,9 @@ export default function Footer() {
             <span className="text-white font-bold text-base">Equip<span className="text-yellow-400">Link</span></span>
           </Link>
           <div className="flex items-center gap-4">
-            <a href="#" className="text-gray-500 text-xs">Privacy</a>
+            <Link to="/privacy" className="text-gray-500 hover:text-yellow-400 text-xs transition-colors">Privacy</Link>
             <span className="text-gray-700">·</span>
-            <a href="#" className="text-gray-500 text-xs">Terms</a>
+            <Link to="/terms" className="text-gray-500 hover:text-yellow-400 text-xs transition-colors">Terms</Link>
           </div>
           <p className="text-gray-600 text-xs">&copy; 2026 EquipLink</p>
         </div>

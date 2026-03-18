@@ -37,6 +37,8 @@ import ForumList from './pages/forum/ForumList';
 import ForumThread from './pages/forum/ForumThread';
 import NewForumPost from './pages/forum/NewForumPost';
 import AiDiagnose from './pages/ai/AiDiagnose';
+import PrivacyPolicy from './pages/legal/PrivacyPolicy';
+import TermsOfService from './pages/legal/TermsOfService';
 
 function IdleWarningModal() {
   const { idleWarning, idleSecondsLeft, resetIdleTimer, signOut } = useAuth();
@@ -133,6 +135,8 @@ function AppContent() {
         <Route path="/forum/:postId" element={<ForumThread />} />
         <Route path="/forum/new" element={<ProtectedRoute><NewForumPost /></ProtectedRoute>} />
         <Route path="/ai-diagnose" element={<ProtectedRoute><AiDiagnose /></ProtectedRoute>} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
       </Routes>
       </div>
       <Footer />
