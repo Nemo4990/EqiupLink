@@ -26,41 +26,27 @@ export default function WriteReview() {
     if (!mechanicId || !currentUser) return;
     Promise.all([
       supabase.from('profiles').select('*').eq('id', mechanicId).maybeSingle(),
-      supabase
-        .from('reviews')
-        .select('id')
-        .eq('mechanic_id', mechanicId)
-        .eq('reviewer_id', currentUser.id)
-        .eq('breakdown_request_id', requestId || null)
-        .maybeSingle(),
+      requestId
+        ? supabase
+            .from('reviews')
+            .select('id')
+            .eq('mechanic_id', mechanicId)
+            .eq('reviewer_id', currentUser.id)
+            .eq('breakdown_request_id', requestId)
+            .maybeSingle()
+        : supabase
+            .from('reviews')
+            .select('id')
+            .eq('mechanic_id', mechanicId)
+            .eq('reviewer_id', currentUser.id)
+            .is('breakdown_request_id', null)
+            .maybeSingle(),
     ]).then(([{ data: mechanicData }, { data: existingReview }]) => {
       setMechanic(mechanicData as Profile | null);
       setAlreadyReviewed(!!existingReview);
       setLoading(false);
     });
   }, [mechanicId, currentUser, requestId]);
-
-  const recalculateRating = async (mechanicUserId: string) => {
-    const { data: lastTen } = await supabase
-      .from('reviews')
-      .select('rating')
-      .eq('mechanic_id', mechanicUserId)
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    if (!lastTen || lastTen.length === 0) return;
-
-    const avg = lastTen.reduce((sum, r) => sum + r.rating, 0) / lastTen.length;
-
-    const { count } = await supabase
-      .from('reviews')
-      .select('id', { count: 'exact', head: true })
-      .eq('mechanic_id', mechanicUserId);
-
-    await supabase.from('mechanic_profiles')
-      .update({ rating: parseFloat(avg.toFixed(2)), total_reviews: count ?? lastTen.length })
-      .eq('user_id', mechanicUserId);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,14 +60,16 @@ export default function WriteReview() {
     const { error } = await supabase.from('reviews').insert({
       mechanic_id: mechanicId,
       reviewer_id: currentUser.id,
-      breakdown_request_id: requestId || null,
+      breakdown_request_id: requestId ?? null,
       rating,
       comment: comment.trim() || null,
     });
 
-    if (!error) {
-      await recalculateRating(mechanicId);
+    if (error) {
+      console.error('Review insert error:', error);
+    }
 
+    if (!error) {
       await supabase.from('notifications').insert({
         user_id: mechanicId,
         title: 'New Review Received',
