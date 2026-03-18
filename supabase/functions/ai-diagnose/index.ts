@@ -77,8 +77,8 @@ Deno.serve(async (req: Request) => {
       .eq("is_active", true)
       .maybeSingle();
 
-    const freeQuota = rule?.free_quota ?? 3;
-    const cost = rule?.credits_cost ?? 1;
+    const freeQuota = Number(rule?.free_quota ?? 3);
+    const cost = Number(rule?.credits_cost ?? 1);
     const usedCount = sessionCount ?? 0;
 
     const { data: profileData } = await supabaseClient
