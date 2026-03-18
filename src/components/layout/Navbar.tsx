@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Bell, MessageSquare, ChevronDown, Wrench, LogOut, User, Settings, Search, Briefcase, Shield, Wallet, Crown } from 'lucide-react';
+import { Menu, X, Bell, MessageSquare, ChevronDown, Wrench, LogOut, User, Settings, Search, Briefcase, Shield, Wallet, Crown, Bot } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -74,6 +74,7 @@ export default function Navbar() {
             <Link to="/marketplace/rentals" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">Rentals</Link>
             <Link to="/breakdown" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">Breakdown Requests</Link>
             <Link to="/forum" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">Forum</Link>
+            <Link to="/ai-diagnose" className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium flex items-center gap-1"><Bot className="w-3.5 h-3.5" />AI Diagnose</Link>
           </div>
 
           <div className="hidden md:flex items-center gap-3">
@@ -205,6 +206,7 @@ export default function Navbar() {
               <Link to="/marketplace/rentals" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Rentals</Link>
               <Link to="/breakdown" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Breakdown Requests</Link>
               <Link to="/forum" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Forum</Link>
+              <Link to="/ai-diagnose" onClick={() => setMenuOpen(false)} className="flex items-center gap-1.5 text-gray-300 hover:text-teal-400 py-2 text-sm font-medium"><Bot className="w-3.5 h-3.5" />AI Diagnose</Link>
               <Link to="/search" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Search</Link>
               {user ? (
                 <>

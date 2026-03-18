@@ -36,6 +36,7 @@ import ActiveSessions from './pages/security/ActiveSessions';
 import ForumList from './pages/forum/ForumList';
 import ForumThread from './pages/forum/ForumThread';
 import NewForumPost from './pages/forum/NewForumPost';
+import AiDiagnose from './pages/ai/AiDiagnose';
 
 function IdleWarningModal() {
   const { idleWarning, idleSecondsLeft, resetIdleTimer, signOut } = useAuth();
@@ -129,6 +130,7 @@ function AppContent() {
         <Route path="/forum" element={<ForumList />} />
         <Route path="/forum/:postId" element={<ForumThread />} />
         <Route path="/forum/new" element={<ProtectedRoute><NewForumPost /></ProtectedRoute>} />
+        <Route path="/ai-diagnose" element={<ProtectedRoute><AiDiagnose /></ProtectedRoute>} />
       </Routes>
       <Footer />
     </div>
