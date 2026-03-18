@@ -70,7 +70,7 @@ export default function WriteReview() {
     }
 
     if (!error) {
-      await supabase.from('notifications').insert({
+      supabase.from('notifications').insert({
         user_id: mechanicId,
         title: 'New Review Received',
         message: `${currentUser?.name || 'A customer'} left you a ${rating}-star rating.`,
