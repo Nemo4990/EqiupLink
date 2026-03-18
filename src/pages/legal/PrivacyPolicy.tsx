@@ -1,9 +1,17 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Shield, ArrowLeft } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 export default function PrivacyPolicy() {
-  useEffect(() => { window.scrollTo(0, 0); }, []);
+  const [privacyEmail, setPrivacyEmail] = useState('privacy@equiplink.et');
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    supabase.from('legal_settings').select('privacy_email').maybeSingle().then(({ data }) => {
+      if (data?.privacy_email) setPrivacyEmail(data.privacy_email);
+    });
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-950 pt-20 pb-24 md:pb-16">
@@ -120,7 +128,12 @@ export default function PrivacyPolicy() {
             </p>
             <div className="mt-3 bg-gray-900 border border-gray-800 rounded-xl p-4 text-sm space-y-1">
               <p className="text-white font-semibold">EquipLink Privacy Team</p>
-              <p className="text-gray-400">Email: privacy@equiplink.et</p>
+              <p className="text-gray-400">
+                Email:{' '}
+                <a href={`mailto:${privacyEmail}`} className="text-yellow-400 hover:text-yellow-300 transition-colors">
+                  {privacyEmail}
+                </a>
+              </p>
               <p className="text-gray-400">Location: Addis Ababa, Ethiopia</p>
             </div>
           </Section>

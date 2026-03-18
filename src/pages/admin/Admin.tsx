@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Users, Package, Truck, AlertTriangle, CheckCircle, XCircle, Activity, BarChart3, CreditCard, DollarSign, Clock, Plus, Trash2, Pencil, X, Save, Mail, Phone, MapPin, Globe, TrendingUp, Crown, Wallet, PercentSquare, Settings } from 'lucide-react';
+import { Shield, Users, Package, Truck, AlertTriangle, CheckCircle, XCircle, Activity, BarChart3, CreditCard, DollarSign, Clock, Plus, Trash2, Pencil, X, Save, Mail, Phone, MapPin, Globe, TrendingUp, Crown, Wallet, PercentSquare, Settings, FileText } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Profile, BreakdownRequest, UserPayment, PaymentMethod, Commission, Subscription, SubscriptionPlan, PlatformSetting } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
@@ -9,7 +9,13 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 
-type AdminTab = 'overview' | 'users' | 'payments' | 'payment_methods' | 'subscriptions' | 'commissions' | 'breakdowns' | 'listings' | 'site_stats' | 'contact' | 'platform_settings';
+type AdminTab = 'overview' | 'users' | 'payments' | 'payment_methods' | 'subscriptions' | 'commissions' | 'breakdowns' | 'listings' | 'site_stats' | 'contact' | 'platform_settings' | 'legal';
+
+interface LegalSettings {
+  id: string;
+  privacy_email: string;
+  legal_email: string;
+}
 
 interface ContactSettings {
   id: string;
@@ -65,6 +71,9 @@ export default function Admin() {
   const [editingStat, setEditingStat] = useState<SiteStat | null>(null);
   const [statForm, setStatForm] = useState({ stat_key: '', stat_value: '', stat_label: '', sort_order: 0 });
   const [savingStat, setSavingStat] = useState(false);
+  const [legalSettings, setLegalSettings] = useState<LegalSettings | null>(null);
+  const [legalForm, setLegalForm] = useState({ privacy_email: '', legal_email: '' });
+  const [savingLegal, setSavingLegal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -85,6 +94,7 @@ export default function Admin() {
       { data: subscriptionsData },
       { data: subPlansData },
       { data: platformSettingsData },
+      { data: legalSettingsData },
     ] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('breakdown_requests')
@@ -107,6 +117,7 @@ export default function Admin() {
         .order('created_at', { ascending: false }),
       supabase.from('subscription_plans').select('*').order('price_monthly'),
       supabase.from('platform_settings').select('*').order('setting_key'),
+      supabase.from('legal_settings').select('*').maybeSingle(),
     ]);
 
     const allUsers = (usersData || []) as Profile[];
@@ -135,6 +146,11 @@ export default function Admin() {
         twitter_url: contactRes.twitter_url || '',
         linkedin_url: contactRes.linkedin_url || '',
       });
+    }
+    const legalRes = legalSettingsData as LegalSettings | null;
+    if (legalRes) {
+      setLegalSettings(legalRes);
+      setLegalForm({ privacy_email: legalRes.privacy_email || '', legal_email: legalRes.legal_email || '' });
     }
     setSiteStatsList((siteStatsData || []) as SiteStat[]);
     setStats({
@@ -445,6 +461,35 @@ export default function Admin() {
     setSavingContact(false);
   };
 
+  const saveLegalSettings = async () => {
+    setSavingLegal(true);
+    if (legalSettings) {
+      const { error } = await supabase
+        .from('legal_settings')
+        .update({ ...legalForm, updated_at: new Date().toISOString() })
+        .eq('id', legalSettings.id);
+      if (!error) {
+        setLegalSettings(prev => prev ? { ...prev, ...legalForm } : prev);
+        toast.success('Legal settings saved');
+      } else {
+        toast.error('Failed to save legal settings');
+      }
+    } else {
+      const { data, error } = await supabase
+        .from('legal_settings')
+        .insert(legalForm)
+        .select()
+        .maybeSingle();
+      if (!error && data) {
+        setLegalSettings(data as LegalSettings);
+        toast.success('Legal settings saved');
+      } else {
+        toast.error('Failed to save legal settings');
+      }
+    }
+    setSavingLegal(false);
+  };
+
   const updateCommissionStatus = async (commissionId: string, status: 'paid' | 'waived' | 'disputed') => {
     const { error } = await supabase.from('commissions').update({ status }).eq('id', commissionId);
     if (!error) {
@@ -513,6 +558,7 @@ export default function Admin() {
     { id: 'platform_settings', label: 'Platform Fees', icon: Settings },
     { id: 'site_stats', label: 'Site Stats', icon: TrendingUp },
     { id: 'contact', label: 'Contact Info', icon: Mail },
+    { id: 'legal', label: 'Legal', icon: FileText },
   ];
 
   return (
@@ -1407,6 +1453,69 @@ export default function Admin() {
                       <Save className="w-4 h-4" />
                       {savingPlatformSettings ? 'Saving...' : 'Save Fee Settings'}
                     </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+            {tab === 'legal' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-9 h-9 bg-yellow-400/10 rounded-lg flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-yellow-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-white font-semibold">Legal Page Contacts</h3>
+                      <p className="text-gray-400 text-sm mt-0.5">Email addresses shown on the Privacy Policy and Terms of Service pages</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-gray-400 text-xs font-medium mb-1.5 flex items-center gap-1.5">
+                          <Shield className="w-3.5 h-3.5 text-yellow-400" /> Privacy Team Email
+                        </label>
+                        <input
+                          type="email"
+                          value={legalForm.privacy_email}
+                          onChange={e => setLegalForm(p => ({ ...p, privacy_email: e.target.value }))}
+                          placeholder="privacy@equiplink.et"
+                          className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-2.5 px-3 text-sm outline-none transition-colors"
+                        />
+                        <p className="text-gray-600 text-xs mt-1">Shown on the Privacy Policy page</p>
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-xs font-medium mb-1.5 flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5 text-yellow-400" /> Legal Team Email
+                        </label>
+                        <input
+                          type="email"
+                          value={legalForm.legal_email}
+                          onChange={e => setLegalForm(p => ({ ...p, legal_email: e.target.value }))}
+                          placeholder="legal@equiplink.et"
+                          className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-2.5 px-3 text-sm outline-none transition-colors"
+                        />
+                        <p className="text-gray-600 text-xs mt-1">Shown on the Terms of Service page</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-4 text-sm text-gray-400 space-y-1">
+                      <p className="text-gray-300 font-medium text-xs uppercase tracking-wider mb-2">Preview</p>
+                      <p>Privacy Policy contact: <span className="text-yellow-400">{legalForm.privacy_email || 'privacy@equiplink.et'}</span></p>
+                      <p>Terms of Service contact: <span className="text-yellow-400">{legalForm.legal_email || 'legal@equiplink.et'}</span></p>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                      <button
+                        onClick={saveLegalSettings}
+                        disabled={savingLegal}
+                        className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 text-gray-900 font-semibold px-6 py-2.5 rounded-xl transition-colors"
+                      >
+                        <Save className="w-4 h-4" />
+                        {savingLegal ? 'Saving...' : 'Save Legal Settings'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </motion.div>
