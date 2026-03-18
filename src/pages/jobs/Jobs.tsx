@@ -275,9 +275,9 @@ export default function Jobs() {
       await supabase.from('notifications').insert({
         user_id: job.customer_id,
         title: 'Job Completed!',
-        message: `${profile?.name} has marked the job as complete. Please leave a review.`,
+        message: `${profile?.name} has marked your job as complete. Go to "My Requests → Completed Jobs" to rate the mechanic.`,
         type: 'success',
-        related_id: job.id,
+        related_id: job.service_request_id,
       });
       toast.success(`Job completed! Net earnings: ${techNet.toLocaleString()} ETB (after ${job.commission_rate}% commission)`);
     }

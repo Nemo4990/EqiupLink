@@ -3,13 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, MapPin, Clock, ChevronDown, ChevronUp, Star,
-  CheckCircle, Phone, MessageSquare, Lock, Wrench, X
+  CheckCircle, Phone, MessageSquare, Lock, Wrench, X,
+  Briefcase, Trophy
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { ServiceRequest, Offer, PlatformSetting } from '../../types';
+import { ServiceRequest, Offer, ActiveJob } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format } from 'date-fns';
 import toast from 'react-hot-toast';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -28,11 +29,21 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
+type TabType = 'active' | 'completed';
+
+interface CompletedJob extends ActiveJob {
+  service_request?: ServiceRequest;
+  technician?: Record<string, string>;
+  has_review?: boolean;
+}
+
 export default function MyRequests() {
   const { profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const [tab, setTab] = useState<TabType>('active');
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [offersMap, setOffersMap] = useState<Record<string, Offer[]>>({});
+  const [completedJobs, setCompletedJobs] = useState<CompletedJob[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState<string | null>(null);
@@ -44,10 +55,16 @@ export default function MyRequests() {
   useEffect(() => {
     if (profile) {
       loadSettings();
-      fetchRequests();
       fetchWalletBalance();
     }
   }, [profile]);
+
+  useEffect(() => {
+    if (profile) {
+      if (tab === 'active') fetchRequests();
+      else fetchCompletedJobs();
+    }
+  }, [profile, tab]);
 
   const fetchWalletBalance = async () => {
     if (!profile) return;
@@ -75,6 +92,7 @@ export default function MyRequests() {
       .from('service_requests')
       .select('*')
       .eq('customer_id', profile.id)
+      .neq('status', 'completed')
       .order('created_at', { ascending: false });
 
     const reqs = (data || []) as ServiceRequest[];
@@ -94,7 +112,42 @@ export default function MyRequests() {
       });
       setOffersMap(grouped);
     }
+    setLoading(false);
+  };
 
+  const fetchCompletedJobs = async () => {
+    if (!profile) return;
+    setLoading(true);
+
+    const { data: jobs } = await supabase
+      .from('active_jobs')
+      .select(`
+        *,
+        service_request:service_requests(*),
+        technician:profiles!active_jobs_technician_id_fkey(id, name, avatar_url, phone, location)
+      `)
+      .eq('customer_id', profile.id)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false });
+
+    const jobList = (jobs || []) as CompletedJob[];
+
+    if (jobList.length > 0) {
+      const techIds = [...new Set(jobList.map(j => (j.technician as Record<string, string>)?.id).filter(Boolean))];
+      const { data: reviews } = await supabase
+        .from('reviews')
+        .select('reviewed_id, reviewer_id, related_id')
+        .eq('reviewer_id', profile.id)
+        .in('reviewed_id', techIds);
+
+      const reviewedSet = new Set((reviews || []).map(r => `${r.reviewed_id}_${r.related_id}`));
+      jobList.forEach(job => {
+        const techId = (job.technician as Record<string, string>)?.id;
+        job.has_review = reviewedSet.has(`${techId}_${job.service_request_id}`);
+      });
+    }
+
+    setCompletedJobs(jobList);
     setLoading(false);
   };
 
@@ -218,10 +271,10 @@ export default function MyRequests() {
   return (
     <div className="min-h-screen bg-gray-950 pt-20 pb-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-black text-white">My Service Requests</h1>
-            <p className="text-gray-400 text-sm mt-1">View offers from technicians and accept the best one</p>
+            <p className="text-gray-400 text-sm mt-1">View offers from technicians and track your jobs</p>
           </div>
           <Link
             to="/requests/new"
@@ -231,196 +284,298 @@ export default function MyRequests() {
           </Link>
         </div>
 
-        {requests.length === 0 ? (
-          <div className="text-center py-20">
-            <Wrench className="w-16 h-16 text-gray-700 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-white mb-2">No requests yet</h3>
-            <p className="text-gray-400 mb-6">Post your first service request — it's free!</p>
-            <Link
-              to="/requests/new"
-              className="inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold px-6 py-3 rounded-xl transition-colors"
+        <div className="flex gap-2 mb-6">
+          {(['active', 'completed'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                tab === t ? 'bg-yellow-400 text-gray-900' : 'bg-gray-800 text-gray-400 hover:text-white'
+              }`}
             >
-              <Plus className="w-4 h-4" /> Post a Request
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {requests.map(req => {
-              const offers = offersMap[req.id] || [];
-              const isExpanded = expandedId === req.id;
-              const acceptedOffer = offers.find(o => o.status === 'accepted');
+              {t === 'active' ? <Briefcase className="w-4 h-4" /> : <Trophy className="w-4 h-4" />}
+              {t === 'active' ? 'Active Requests' : 'Completed Jobs'}
+            </button>
+          ))}
+        </div>
 
-              return (
-                <motion.div
-                  key={req.id}
-                  layout
-                  className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden"
-                >
-                  <div
-                    className="p-5 cursor-pointer hover:bg-gray-800/30 transition-colors"
-                    onClick={() => setExpandedId(isExpanded ? null : req.id)}
+        {tab === 'active' ? (
+          requests.length === 0 ? (
+            <div className="text-center py-20">
+              <Wrench className="w-16 h-16 text-gray-700 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">No active requests</h3>
+              <p className="text-gray-400 mb-6">Post your first service request — it's free!</p>
+              <Link
+                to="/requests/new"
+                className="inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold px-6 py-3 rounded-xl transition-colors"
+              >
+                <Plus className="w-4 h-4" /> Post a Request
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {requests.map(req => {
+                const offers = offersMap[req.id] || [];
+                const isExpanded = expandedId === req.id;
+                const acceptedOffer = offers.find(o => o.status === 'accepted');
+
+                return (
+                  <motion.div
+                    key={req.id}
+                    layout
+                    className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <h3 className="text-white font-semibold">{req.title}</h3>
-                          <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium capitalize ${STATUS_STYLES[req.status]}`}>
-                            {req.status.replace('_', ' ')}
-                          </span>
-                          <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-800 text-gray-400">
-                            {CATEGORY_LABELS[req.category] || req.category}
-                          </span>
+                    <div
+                      className="p-5 cursor-pointer hover:bg-gray-800/30 transition-colors"
+                      onClick={() => setExpandedId(isExpanded ? null : req.id)}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <h3 className="text-white font-semibold">{req.title}</h3>
+                            <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium capitalize ${STATUS_STYLES[req.status]}`}>
+                              {req.status.replace('_', ' ')}
+                            </span>
+                            <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-gray-800 text-gray-400">
+                              {CATEGORY_LABELS[req.category] || req.category}
+                            </span>
+                          </div>
+                          <p className="text-gray-400 text-sm line-clamp-2">{req.description}</p>
+                          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" /> {req.location}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> {formatDistanceToNow(new Date(req.created_at), { addSuffix: true })}
+                            </span>
+                            {req.budget && (
+                              <span className="text-yellow-400">Budget: {req.budget.toLocaleString()} ETB</span>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-gray-400 text-sm line-clamp-2">{req.description}</p>
-                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3" /> {req.location}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {formatDistanceToNow(new Date(req.created_at), { addSuffix: true })}
-                          </span>
-                          {req.budget && (
-                            <span className="text-yellow-400">Budget: {req.budget.toLocaleString()} ETB</span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="text-center">
+                            <p className="text-xl font-black text-yellow-400">{offers.length}</p>
+                            <p className="text-gray-500 text-xs">offer{offers.length !== 1 ? 's' : ''}</p>
+                          </div>
+                          {isExpanded ? (
+                            <ChevronUp className="w-5 h-5 text-gray-500" />
+                          ) : (
+                            <ChevronDown className="w-5 h-5 text-gray-500" />
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <div className="text-center">
-                          <p className="text-xl font-black text-yellow-400">{offers.length}</p>
-                          <p className="text-gray-500 text-xs">offer{offers.length !== 1 ? 's' : ''}</p>
+                    </div>
+
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="border-t border-gray-800 overflow-hidden"
+                        >
+                          <div className="p-5">
+                            {offers.length === 0 ? (
+                              <div className="text-center py-8">
+                                <Clock className="w-10 h-10 text-gray-700 mx-auto mb-2" />
+                                <p className="text-gray-400 text-sm">Waiting for technician offers...</p>
+                                <p className="text-gray-600 text-xs mt-1">You'll be notified when offers arrive</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                <h4 className="text-white font-semibold text-sm mb-3">
+                                  Offers ({offers.length})
+                                </h4>
+                                {offers.map(offer => {
+                                  const tech = offer.technician as Record<string, string> | undefined;
+                                  const isAccepted = offer.status === 'accepted';
+                                  const isContactRevealed = offer.is_contact_unlocked;
+
+                                  return (
+                                    <div
+                                      key={offer.id}
+                                      className={`rounded-xl border p-4 transition-colors ${
+                                        isAccepted
+                                          ? 'border-green-700/50 bg-green-900/10'
+                                          : 'border-gray-700 bg-gray-800/40'
+                                      }`}
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center flex-shrink-0">
+                                            {tech?.avatar_url ? (
+                                              <img src={tech.avatar_url} alt={tech.name} className="w-full h-full object-cover" />
+                                            ) : (
+                                              <span className="text-gray-900 font-bold text-sm">{(tech?.name || '?')[0]}</span>
+                                            )}
+                                          </div>
+                                          <div>
+                                            <p className="text-white font-semibold text-sm">{tech?.name || 'Technician'}</p>
+                                            {isContactRevealed && tech?.phone ? (
+                                              <p className="text-green-400 text-xs flex items-center gap-1">
+                                                <Phone className="w-3 h-3" /> {tech.phone}
+                                              </p>
+                                            ) : (
+                                              <p className="text-gray-500 text-xs flex items-center gap-1">
+                                                <Lock className="w-3 h-3" /> Contact hidden
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="text-white font-black text-lg">
+                                            {offer.price.toLocaleString()} <span className="text-sm font-medium text-gray-400">ETB</span>
+                                          </p>
+                                          {isAccepted && (
+                                            <span className="flex items-center gap-1 text-xs text-green-400">
+                                              <CheckCircle className="w-3 h-3" /> Accepted
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {offer.message && (
+                                        <p className="text-gray-400 text-sm mt-3 leading-relaxed">{offer.message}</p>
+                                      )}
+
+                                      {!isAccepted && req.status === 'open' && (
+                                        <div className="mt-3 pt-3 border-t border-gray-700 flex items-center justify-between">
+                                          <p className="text-gray-500 text-xs">
+                                            Accept to unlock contact · {connectionFee} ETB connection fee
+                                          </p>
+                                          <button
+                                            onClick={() => handleAcceptOffer(offer.id, tech?.name || 'Technician', offer.price)}
+                                            disabled={accepting === offer.id || unlocking === offer.id}
+                                            className="flex items-center gap-1.5 bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 text-gray-900 font-bold text-xs px-4 py-2 rounded-lg transition-colors"
+                                          >
+                                            {accepting === offer.id ? (
+                                              <div className="w-3 h-3 border border-gray-900 border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                              <CheckCircle className="w-3.5 h-3.5" />
+                                            )}
+                                            Accept Offer
+                                          </button>
+                                        </div>
+                                      )}
+
+                                      {isAccepted && isContactRevealed && (
+                                        <div className="mt-3 pt-3 border-t border-gray-700 flex items-center gap-2 flex-wrap">
+                                          <button
+                                            onClick={() => navigate(`/messages?user=${offer.technician_id}`)}
+                                            className="flex items-center gap-1.5 border border-gray-600 text-gray-300 hover:border-yellow-400 hover:text-yellow-400 text-xs px-3 py-1.5 rounded-lg transition-colors"
+                                          >
+                                            <MessageSquare className="w-3.5 h-3.5" /> Message
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          completedJobs.length === 0 ? (
+            <div className="text-center py-20">
+              <Trophy className="w-16 h-16 text-gray-700 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white mb-2">No completed jobs yet</h3>
+              <p className="text-gray-400">Completed jobs will appear here once a mechanic marks them as done.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {completedJobs.map(job => {
+                const tech = job.technician as Record<string, string> | undefined;
+                const request = job.service_request as ServiceRequest | undefined;
+                const commissionAmount = job.agreed_price * (job.commission_rate / 100);
+                const techNet = job.agreed_price - commissionAmount;
+
+                return (
+                  <motion.div
+                    key={job.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gray-900 border border-green-800/30 rounded-2xl overflow-hidden"
+                  >
+                    <div className="p-5">
+                      <div className="flex items-start justify-between gap-4 mb-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <h3 className="text-white font-semibold">{request?.title || 'Service Job'}</h3>
+                            <span className="text-xs px-2.5 py-0.5 rounded-full font-medium text-green-400 bg-green-900/30 flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" /> Completed
+                            </span>
+                          </div>
+                          <p className="text-gray-500 text-xs capitalize">{CATEGORY_LABELS[request?.category || ''] || request?.category}</p>
+                          {job.completed_at && (
+                            <p className="text-gray-600 text-xs mt-1 flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> Completed {format(new Date(job.completed_at), 'MMM d, yyyy')}
+                            </p>
+                          )}
                         </div>
-                        {isExpanded ? (
-                          <ChevronUp className="w-5 h-5 text-gray-500" />
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-white font-black text-lg">{job.agreed_price.toLocaleString()} ETB</p>
+                          <p className="text-gray-500 text-xs">total agreed</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-gray-800/50 rounded-xl px-4 py-3 mb-4 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center flex-shrink-0">
+                          {tech?.avatar_url ? (
+                            <img src={tech.avatar_url} alt={tech.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-gray-900 font-bold text-sm">{(tech?.name || '?')[0]}</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-medium text-sm">{tech?.name || 'Technician'}</p>
+                          {tech?.phone && (
+                            <p className="text-gray-400 text-xs flex items-center gap-1">
+                              <Phone className="w-3 h-3" /> {tech.phone}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => navigate(`/messages?user=${job.technician_id}`)}
+                          className="flex items-center gap-1.5 text-xs border border-gray-600 text-gray-300 hover:border-yellow-400 hover:text-yellow-400 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" /> Message
+                        </button>
+                      </div>
+
+                      <div className="bg-gray-800/30 rounded-xl px-4 py-2 mb-4 flex items-center justify-between text-xs">
+                        <span className="text-gray-500">Technician net after {job.commission_rate}% commission</span>
+                        <span className="text-green-400 font-bold">{techNet.toLocaleString()} ETB</span>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {!job.has_review ? (
+                          <Link
+                            to={`/review/${job.technician_id}/${job.service_request_id}`}
+                            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold text-sm px-4 py-2.5 rounded-xl transition-colors"
+                          >
+                            <Star className="w-4 h-4" /> Rate the Mechanic
+                          </Link>
                         ) : (
-                          <ChevronDown className="w-5 h-5 text-gray-500" />
+                          <span className="flex items-center gap-2 text-sm text-yellow-400 bg-yellow-400/10 border border-yellow-400/30 px-4 py-2.5 rounded-xl">
+                            <Star className="w-4 h-4 fill-yellow-400" /> Review Submitted
+                          </span>
                         )}
                       </div>
                     </div>
-                  </div>
-
-                  <AnimatePresence>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="border-t border-gray-800 overflow-hidden"
-                      >
-                        <div className="p-5">
-                          {offers.length === 0 ? (
-                            <div className="text-center py-8">
-                              <Clock className="w-10 h-10 text-gray-700 mx-auto mb-2" />
-                              <p className="text-gray-400 text-sm">Waiting for technician offers...</p>
-                              <p className="text-gray-600 text-xs mt-1">You'll be notified when offers arrive</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              <h4 className="text-white font-semibold text-sm mb-3">
-                                Offers ({offers.length})
-                              </h4>
-                              {offers.map(offer => {
-                                const tech = offer.technician as Record<string, string> | undefined;
-                                const isAccepted = offer.status === 'accepted';
-                                const isContactRevealed = offer.is_contact_unlocked;
-
-                                return (
-                                  <div
-                                    key={offer.id}
-                                    className={`rounded-xl border p-4 transition-colors ${
-                                      isAccepted
-                                        ? 'border-green-700/50 bg-green-900/10'
-                                        : 'border-gray-700 bg-gray-800/40'
-                                    }`}
-                                  >
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center flex-shrink-0">
-                                          {tech?.avatar_url ? (
-                                            <img src={tech.avatar_url} alt={tech.name} className="w-full h-full object-cover" />
-                                          ) : (
-                                            <span className="text-gray-900 font-bold text-sm">{(tech?.name || '?')[0]}</span>
-                                          )}
-                                        </div>
-                                        <div>
-                                          <p className="text-white font-semibold text-sm">{tech?.name || 'Technician'}</p>
-                                          {isContactRevealed && tech?.phone ? (
-                                            <p className="text-green-400 text-xs flex items-center gap-1">
-                                              <Phone className="w-3 h-3" /> {tech.phone}
-                                            </p>
-                                          ) : (
-                                            <p className="text-gray-500 text-xs flex items-center gap-1">
-                                              <Lock className="w-3 h-3" /> Contact hidden
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <div className="text-right">
-                                        <p className="text-white font-black text-lg">
-                                          {offer.price.toLocaleString()} <span className="text-sm font-medium text-gray-400">ETB</span>
-                                        </p>
-                                        {isAccepted && (
-                                          <span className="flex items-center gap-1 text-xs text-green-400">
-                                            <CheckCircle className="w-3 h-3" /> Accepted
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    {offer.message && (
-                                      <p className="text-gray-400 text-sm mt-3 leading-relaxed">{offer.message}</p>
-                                    )}
-
-                                    {!isAccepted && req.status === 'open' && (
-                                      <div className="mt-3 pt-3 border-t border-gray-700 flex items-center justify-between">
-                                        <p className="text-gray-500 text-xs">
-                                          Accept to unlock contact · {connectionFee} ETB connection fee
-                                        </p>
-                                        <button
-                                          onClick={() => handleAcceptOffer(offer.id, tech?.name || 'Technician', offer.price)}
-                                          disabled={accepting === offer.id || unlocking === offer.id}
-                                          className="flex items-center gap-1.5 bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 text-gray-900 font-bold text-xs px-4 py-2 rounded-lg transition-colors"
-                                        >
-                                          {accepting === offer.id ? (
-                                            <div className="w-3 h-3 border border-gray-900 border-t-transparent rounded-full animate-spin" />
-                                          ) : (
-                                            <CheckCircle className="w-3.5 h-3.5" />
-                                          )}
-                                          Accept Offer
-                                        </button>
-                                      </div>
-                                    )}
-
-                                    {isAccepted && isContactRevealed && (
-                                      <div className="mt-3 pt-3 border-t border-gray-700 flex items-center gap-2 flex-wrap">
-                                        <button
-                                          onClick={() => navigate(`/messages?user=${offer.technician_id}`)}
-                                          className="flex items-center gap-1.5 border border-gray-600 text-gray-300 hover:border-yellow-400 hover:text-yellow-400 text-xs px-3 py-1.5 rounded-lg transition-colors"
-                                        >
-                                          <MessageSquare className="w-3.5 h-3.5" /> Message
-                                        </button>
-                                        {req.status === 'completed' && (
-                                          <Link
-                                            to={`/review/${offer.technician_id}/${req.id}`}
-                                            className="flex items-center gap-1.5 bg-yellow-400/20 text-yellow-400 border border-yellow-400/40 hover:bg-yellow-400/30 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                                          >
-                                            <Star className="w-3.5 h-3.5" /> Rate Technician
-                                          </Link>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              );
-            })}
-          </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )
         )}
       </div>
 
