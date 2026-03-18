@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wrench, Mail, Lock, Eye, EyeOff, AlertCircle, ArrowLeft, CheckCircle, ShieldAlert, Clock } from 'lucide-react';
+import { Wrench, Mail, Lock, Eye, EyeOff, AlertCircle, ArrowLeft, CheckCircle, ShieldAlert, Clock, MailCheck } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 const ROLE_REDIRECT: Record<string, string> = {
-  mechanic: '/jobs',
-  supplier: '/dashboard',
+  mechanic: '/dashboard/technician',
+  technician: '/dashboard/technician',
+  electrician: '/dashboard/technician',
+  supplier: '/dashboard/supplier',
   rental_provider: '/dashboard',
-  owner: '/dashboard',
+  owner: '/dashboard/owner',
   admin: '/admin',
 };
 
@@ -25,6 +27,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [emailNotVerified, setEmailNotVerified] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
   const [resetIn, setResetIn] = useState(0);
@@ -37,6 +40,7 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setRateLimited(false);
+    setEmailNotVerified(false);
     setLoading(true);
     const result = await signIn(email, password);
     setLoading(false);
@@ -49,6 +53,10 @@ export default function Login() {
     }
 
     if (result.error) {
+      if (result.error.message === 'EMAIL_NOT_VERIFIED') {
+        setEmailNotVerified(true);
+        return;
+      }
       const rem = result.remaining ?? null;
       setRemainingAttempts(rem);
       if (rem !== null && rem <= 2) {
@@ -177,6 +185,17 @@ export default function Login() {
             ) : (
               <motion.div key="login-form" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {emailNotVerified && (
+                    <div className="bg-blue-900/30 border border-blue-700 text-blue-300 px-4 py-3 rounded-lg text-sm">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MailCheck className="w-4 h-4 flex-shrink-0 text-blue-400" />
+                        <span className="font-semibold text-blue-400">Please verify your email before logging in.</span>
+                      </div>
+                      <p className="text-blue-300/80 text-xs mt-1">
+                        Check your inbox for the verification link we sent when you signed up.
+                      </p>
+                    </div>
+                  )}
                   {rateLimited && (
                     <div className="bg-orange-900/30 border border-orange-800 text-orange-300 px-4 py-3 rounded-lg text-sm">
                       <div className="flex items-center gap-2 mb-1">

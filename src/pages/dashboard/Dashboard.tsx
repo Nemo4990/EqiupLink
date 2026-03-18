@@ -4,12 +4,13 @@ import { motion } from 'framer-motion';
 import {
   Wrench, AlertTriangle, Package, Truck, MessageSquare, Bell,
   Plus, ChevronRight, Star, Clock, CheckCircle, Activity, Briefcase,
-  Crown, Wallet, TrendingUp, CreditCard, Zap, ArrowRight, BarChart3
+  Crown, Wallet, TrendingUp, CreditCard, Zap, ArrowRight, BarChart3, Siren
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { BreakdownRequest, Notification, Wallet as WalletType, Subscription, Commission } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import EmergencyRepairModal from '../../components/ui/EmergencyRepairModal';
 import { format, formatDistanceToNow } from 'date-fns';
 
 const URGENCY_COLORS: Record<string, string> = {
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const [commissions, setCommissions] = useState<Commission[]>([]);
   const [stats, setStats] = useState({ open: 0, resolved: 0, messages: 0, pendingPayments: 0 });
   const [loading, setLoading] = useState(true);
+  const [showEmergency, setShowEmergency] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -142,12 +144,20 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center gap-3">
               {isOwner && (
-                <Link
-                  to="/breakdown/new"
-                  className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-semibold px-4 py-2.5 rounded-xl transition-colors"
-                >
-                  <Plus className="w-4 h-4" /> Post Breakdown
-                </Link>
+                <>
+                  <button
+                    onClick={() => setShowEmergency(true)}
+                    className="flex items-center gap-2 bg-red-600 hover:bg-red-500 text-white font-bold px-4 py-2.5 rounded-xl transition-colors animate-pulse hover:animate-none"
+                  >
+                    <Siren className="w-4 h-4" /> Machine Down
+                  </button>
+                  <Link
+                    to="/breakdown/new"
+                    className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-semibold px-4 py-2.5 rounded-xl transition-colors"
+                  >
+                    <Plus className="w-4 h-4" /> Post Breakdown
+                  </Link>
+                </>
               )}
               {isMechanic && (
                 <>
@@ -466,6 +476,8 @@ export default function Dashboard() {
           </div>
         </motion.div>
       </div>
+
+      <EmergencyRepairModal isOpen={showEmergency} onClose={() => setShowEmergency(false)} />
     </div>
   );
 }

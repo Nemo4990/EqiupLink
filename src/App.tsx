@@ -9,6 +9,7 @@ import { AlertTriangle, Clock } from 'lucide-react';
 import Landing from './pages/Landing';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import VerifyEmail from './pages/auth/VerifyEmail';
 import Dashboard from './pages/dashboard/Dashboard';
 import Mechanics from './pages/marketplace/Mechanics';
 import Parts from './pages/marketplace/Parts';
@@ -95,6 +96,10 @@ function AppContent() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/dashboard/technician" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/dashboard/owner" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/dashboard/supplier" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 
         <Route path="/marketplace/mechanics" element={<Mechanics />} />
         <Route path="/marketplace/parts" element={<Parts />} />

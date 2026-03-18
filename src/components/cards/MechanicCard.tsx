@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Star, MapPin, Clock, MessageSquare, CheckCircle, Lock } from 'lucide-react';
+import { Star, MapPin, Clock, MessageSquare, CheckCircle, Lock, Phone } from 'lucide-react';
 import { MechanicProfile } from '../../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -64,6 +64,18 @@ export default function MechanicCard({ mechanic }: Props) {
     setShowPayment(false);
     setPendingPayment(true);
   };
+
+  const handleWhatsApp = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const phone = (mechanic.profile as any)?.contact_whatsapp || (mechanic.profile as any)?.contact_phone || (mechanic.profile as any)?.phone;
+    if (!phone) return;
+    const cleaned = phone.replace(/\D/g, '');
+    const name = mechanic.profile?.name || 'Mechanic';
+    const msg = encodeURIComponent(`Hello ${name}, I found your profile on EquipLink and would like to discuss a job opportunity.`);
+    window.open(`https://wa.me/${cleaned}?text=${msg}`, '_blank');
+  };
+
+  const whatsappPhone = (mechanic.profile as any)?.contact_whatsapp || (mechanic.profile as any)?.contact_phone || (mechanic.profile as any)?.phone;
 
   return (
     <>
@@ -134,10 +146,10 @@ export default function MechanicCard({ mechanic }: Props) {
             </div>
           )}
 
-          <div className="mt-4">
+          <div className="mt-4 flex gap-2">
             <button
               onClick={handleContact}
-              className={`w-full flex items-center justify-center gap-2 font-semibold text-sm py-2 rounded-lg transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-2 font-semibold text-sm py-2 rounded-lg transition-colors ${
                 hasAccess
                   ? 'bg-yellow-400 hover:bg-yellow-300 text-gray-900'
                   : pendingPayment
@@ -147,13 +159,22 @@ export default function MechanicCard({ mechanic }: Props) {
               disabled={pendingPayment}
             >
               {hasAccess ? (
-                <><MessageSquare className="w-4 h-4" /> Contact</>
+                <><MessageSquare className="w-4 h-4" /> Message</>
               ) : pendingPayment ? (
                 <><Clock className="w-4 h-4" /> Pending</>
               ) : (
                 <><Lock className="w-4 h-4" /> Pay to Contact</>
               )}
             </button>
+            {hasAccess && whatsappPhone && (
+              <button
+                onClick={handleWhatsApp}
+                className="flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-500 text-white font-semibold text-sm px-3 py-2 rounded-lg transition-colors"
+                title="Chat on WhatsApp"
+              >
+                <Phone className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {mechanic.is_available && (

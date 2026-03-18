@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: `${window.location.origin}/verify-email`,
       },
     });
     if (error) return { error, needsVerification: false };
@@ -198,6 +198,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         rateLimited: false,
         remaining: newRateCheck.remaining,
         resetIn: newRateCheck.resetIn,
+      };
+    }
+
+    if (data.user && !data.user.email_confirmed_at) {
+      await supabase.auth.signOut();
+      return {
+        error: new Error('EMAIL_NOT_VERIFIED') as Error,
+        profile: null,
+        rateLimited: false,
+        remaining: 5,
+        resetIn: 0,
       };
     }
 
