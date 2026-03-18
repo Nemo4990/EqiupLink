@@ -56,8 +56,8 @@ export default function Footer() {
 
   return (
     <footer className="bg-[#0b0f19] border-t border-gray-800/60">
-      <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-10 pt-16 pb-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-12">
+      <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-10 pt-10 md:pt-16 pb-6 md:pb-10">
+        <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-12">
 
           <div className="flex flex-col gap-5">
             <Link to="/" className="inline-flex items-center gap-2.5 w-fit">
@@ -181,7 +181,8 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 pt-6 border-t border-gray-800/60 flex flex-col sm:flex-row justify-between items-center gap-4">
+        {/* Desktop bottom bar */}
+        <div className="hidden md:flex mt-12 pt-6 border-t border-gray-800/60 flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-gray-500 text-sm">
             &copy; 2026 EquipLink. All rights reserved.
           </p>
@@ -193,6 +194,22 @@ export default function Footer() {
               Terms of Service
             </a>
           </div>
+        </div>
+
+        {/* Mobile slim footer */}
+        <div className="md:hidden flex flex-col items-center gap-3 py-4">
+          <Link to="/" className="inline-flex items-center gap-2">
+            <div className="w-7 h-7 bg-yellow-400 rounded-md flex items-center justify-center">
+              <Wrench className="w-4 h-4 text-gray-900" />
+            </div>
+            <span className="text-white font-bold text-base">Equip<span className="text-yellow-400">Link</span></span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <a href="#" className="text-gray-500 text-xs">Privacy</a>
+            <span className="text-gray-700">·</span>
+            <a href="#" className="text-gray-500 text-xs">Terms</a>
+          </div>
+          <p className="text-gray-600 text-xs">&copy; 2026 EquipLink</p>
         </div>
       </div>
     </footer>

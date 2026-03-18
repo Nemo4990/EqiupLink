@@ -89,10 +89,12 @@ function IdleWarningModal() {
 }
 
 function AppContent() {
+  const { user } = useAuth();
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <Navbar />
       <IdleWarningModal />
+      <div className={user ? 'md:block pb-16 md:pb-0' : ''}>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -132,6 +134,7 @@ function AppContent() {
         <Route path="/forum/new" element={<ProtectedRoute><NewForumPost /></ProtectedRoute>} />
         <Route path="/ai-diagnose" element={<ProtectedRoute><AiDiagnose /></ProtectedRoute>} />
       </Routes>
+      </div>
       <Footer />
     </div>
   );
