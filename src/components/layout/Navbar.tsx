@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Bell, MessageSquare, ChevronDown, Wrench, LogOut, User, Settings, Search, Briefcase, Shield, Wallet } from 'lucide-react';
+import { Menu, X, Bell, MessageSquare, ChevronDown, Wrench, LogOut, User, Settings, Search, Briefcase, Shield, Wallet, Crown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
 export default function Navbar() {
   const { user, profile, signOut } = useAuth();
+  const isPro = profile?.subscription_tier === 'pro';
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -117,8 +118,15 @@ export default function Navbar() {
                     onClick={() => setDropdownOpen(!dropdownOpen)}
                     className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors"
                   >
-                    <div className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center text-gray-900 font-bold text-sm">
-                      {profile?.name?.charAt(0).toUpperCase() || 'U'}
+                    <div className="relative">
+                      <div className="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center text-gray-900 font-bold text-sm">
+                        {profile?.name?.charAt(0).toUpperCase() || 'U'}
+                      </div>
+                      {isPro && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center">
+                          <Crown className="w-2.5 h-2.5 text-gray-900" />
+                        </span>
+                      )}
                     </div>
                     <ChevronDown className="w-4 h-4" />
                   </button>
@@ -131,7 +139,14 @@ export default function Navbar() {
                         className="absolute right-0 mt-2 w-48 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden"
                       >
                         <div className="px-4 py-3 border-b border-gray-700">
-                          <p className="text-white text-sm font-medium">{profile?.name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-white text-sm font-medium">{profile?.name}</p>
+                            {isPro && (
+                              <span className="flex items-center gap-0.5 text-xs bg-amber-400/20 text-amber-400 border border-amber-400/30 px-1.5 py-0.5 rounded-full font-semibold">
+                                <Crown className="w-2.5 h-2.5" /> Pro
+                              </span>
+                            )}
+                          </div>
                           <p className="text-gray-400 text-xs capitalize">{profile?.role?.replace('_', ' ')}</p>
                           <p className="text-yellow-400 text-xs font-semibold mt-0.5">{walletBalance?.toLocaleString() ?? 0} ETB</p>
                         </div>

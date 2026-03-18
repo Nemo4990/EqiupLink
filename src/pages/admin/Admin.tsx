@@ -466,14 +466,18 @@ export default function Admin() {
       payment_id: paymentId || null,
     }, { onConflict: 'user_id,role' });
     if (!error) {
-      await supabase.from('profiles').update({ subscription_tier: tier }).eq('id', userId);
+      await supabase.from('profiles').update({
+        subscription_tier: tier,
+        pro_badge: true,
+        pro_expires_at: expiresAt.toISOString(),
+      }).eq('id', userId);
       await supabase.from('notifications').insert({
         user_id: userId,
         title: 'Pro Subscription Activated!',
-        message: 'Your Pro subscription is now active. Enjoy unlimited job access and boosted visibility.',
+        message: 'Your Pro subscription is now active. Enjoy unlimited access and boosted visibility.',
         type: 'subscription',
       });
-      toast.success('Subscription activated and user notified');
+      toast.success('Pro subscription activated and user notified');
       loadData();
     }
   };
@@ -604,6 +608,11 @@ export default function Admin() {
                         <p className="text-gray-500 text-xs">{u.email}</p>
                       </div>
                       <span className="text-xs px-2 py-0.5 bg-gray-800 text-gray-400 rounded-full capitalize hidden sm:inline">{u.role?.replace('_', ' ')}</span>
+                      {u.subscription_tier === 'pro' && (
+                        <span className="flex items-center gap-0.5 text-xs px-2 py-0.5 bg-amber-900/40 text-amber-400 border border-amber-800/50 rounded-full hidden sm:inline-flex">
+                          <Crown className="w-2.5 h-2.5" /> Pro
+                        </span>
+                      )}
                       {!u.is_approved && <span className="text-xs px-2 py-0.5 bg-yellow-900/50 text-yellow-400 rounded-full hidden sm:inline">Pending Approval</span>}
                       {u.is_suspended && <span className="text-xs px-2 py-0.5 bg-red-900/50 text-red-400 rounded-full hidden sm:inline">Suspended</span>}
                     </div>
@@ -611,6 +620,20 @@ export default function Admin() {
                       {!u.is_approved && (
                         <button onClick={() => approveProfile(u.id)} className="text-xs bg-green-900/30 text-green-400 border border-green-800 px-3 py-1.5 rounded-lg hover:bg-green-900/50 transition-colors">
                           Approve Profile
+                        </button>
+                      )}
+                      {u.subscription_tier !== 'pro' && u.role !== 'admin' && (
+                        <button
+                          onClick={() => {
+                            const subRole = ['mechanic', 'technician'].includes(u.role ?? '') ? 'mechanic'
+                              : u.role === 'supplier' ? 'supplier'
+                              : u.role === 'rental_provider' ? 'rental_provider'
+                              : 'owner';
+                            activateSubscription(u.id, 'pro', subRole);
+                          }}
+                          className="text-xs bg-amber-900/30 text-amber-400 border border-amber-800 px-3 py-1.5 rounded-lg hover:bg-amber-900/50 transition-colors flex items-center gap-1"
+                        >
+                          <Crown className="w-3 h-3" /> Grant Pro
                         </button>
                       )}
                       <button

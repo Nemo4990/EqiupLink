@@ -131,25 +131,53 @@ export default function PaymentModal({ isOpen = true, onClose, feeType, feeAmoun
       return;
     }
 
-    const { error: walletError } = await supabase
-      .from('wallets')
-      .update({ balance: newBalance })
-      .eq('id', walletId);
+    await supabase.from('wallets').update({ balance: newBalance }).eq('id', walletId);
+    await supabase.from('profiles').update({ wallet_balance: newBalance }).eq('id', profile.id);
 
-    if (walletError) {
-      toast.error('Failed to update wallet balance. Please contact support.');
-      setSubmitting(false);
-      return;
+    if (feeType === 'subscription_upgrade') {
+      const subRole = ['mechanic', 'technician'].includes(profile.role) ? 'mechanic'
+        : profile.role === 'supplier' ? 'supplier'
+        : profile.role === 'rental_provider' ? 'rental_provider'
+        : 'owner';
+
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + 1);
+
+      await supabase.from('subscriptions').upsert({
+        user_id: profile.id,
+        tier: 'pro',
+        role: subRole,
+        status: 'active',
+        started_at: new Date().toISOString(),
+        expires_at: expiresAt.toISOString(),
+        payment_method_type: 'wallet',
+        auto_renew: false,
+      }, { onConflict: 'user_id,role' });
+
+      await supabase.from('profiles').update({
+        subscription_tier: 'pro',
+        pro_badge: true,
+        pro_expires_at: expiresAt.toISOString(),
+      }).eq('id', profile.id);
+
+      await supabase.from('notifications').insert({
+        user_id: profile.id,
+        title: 'Pro Subscription Activated!',
+        message: `Your Pro subscription is now active until ${expiresAt.toLocaleDateString()}. Enjoy all exclusive Pro features!`,
+        type: 'subscription',
+      });
+
+      toast.success('Pro plan activated instantly!');
+    } else {
+      await supabase.from('notifications').insert({
+        user_id: profile.id,
+        title: 'Payment Successful',
+        message: `${displayAmount.toFixed(2)} ETB deducted from your wallet for ${displayLabel}.`,
+        type: 'payment',
+      });
+      toast.success('Payment successful! Access granted instantly.');
     }
 
-    await supabase.from('notifications').insert({
-      user_id: profile.id,
-      title: 'Payment Successful',
-      message: `${displayAmount.toFixed(2)} ETB deducted from your wallet for ${displayLabel}.`,
-      type: 'payment',
-    });
-
-    toast.success('Payment successful! Access granted instantly.');
     setSubmitting(false);
     onSuccess('wallet');
   };
