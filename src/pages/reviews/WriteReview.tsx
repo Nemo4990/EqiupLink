@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
 
 export default function WriteReview() {
   const { mechanicId, requestId } = useParams<{ mechanicId: string; requestId?: string }>();
-  const { profile: currentUser } = useAuth();
+  const { user, profile: currentUser } = useAuth();
   const navigate = useNavigate();
   const [mechanic, setMechanic] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +23,7 @@ export default function WriteReview() {
   const isCustomer = currentUser?.role === 'customer' || currentUser?.role === 'owner';
 
   useEffect(() => {
-    if (!mechanicId || !currentUser) return;
+    if (!mechanicId || !user) return;
     Promise.all([
       supabase.from('profiles').select('*').eq('id', mechanicId).maybeSingle(),
       requestId
@@ -31,14 +31,14 @@ export default function WriteReview() {
             .from('reviews')
             .select('id')
             .eq('mechanic_id', mechanicId)
-            .eq('reviewer_id', currentUser.id)
+            .eq('reviewer_id', user.id)
             .eq('breakdown_request_id', requestId)
             .maybeSingle()
         : supabase
             .from('reviews')
             .select('id')
             .eq('mechanic_id', mechanicId)
-            .eq('reviewer_id', currentUser.id)
+            .eq('reviewer_id', user.id)
             .is('breakdown_request_id', null)
             .maybeSingle(),
     ]).then(([{ data: mechanicData }, { data: existingReview }]) => {
@@ -46,11 +46,11 @@ export default function WriteReview() {
       setAlreadyReviewed(!!existingReview);
       setLoading(false);
     });
-  }, [mechanicId, currentUser, requestId]);
+  }, [mechanicId, user, requestId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser || !mechanicId || rating === 0) return;
+    if (!user || !mechanicId || rating === 0) return;
     if (!isCustomer) {
       toast.error('Only equipment owners can rate technicians.');
       return;
@@ -59,7 +59,7 @@ export default function WriteReview() {
 
     const { error } = await supabase.from('reviews').insert({
       mechanic_id: mechanicId,
-      reviewer_id: currentUser.id,
+      reviewer_id: user.id,
       breakdown_request_id: requestId ?? null,
       rating,
       comment: comment.trim() || null,
@@ -73,7 +73,7 @@ export default function WriteReview() {
       await supabase.from('notifications').insert({
         user_id: mechanicId,
         title: 'New Review Received',
-        message: `${currentUser.name} left you a ${rating}-star rating.`,
+        message: `${currentUser?.name || 'A customer'} left you a ${rating}-star rating.`,
         type: 'review',
       });
 
