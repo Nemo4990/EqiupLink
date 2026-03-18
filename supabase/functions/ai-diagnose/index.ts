@@ -30,23 +30,25 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
 
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false },
+    });
 
-    const anonClient = createClient(
-      supabaseUrl,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
 
-    const {
-      data: { user },
-      error: authError,
-    } = await anonClient.auth.getUser();
     if (authError || !user) {
       return errorResponse("Unauthorized", 401);
     }
 
-    const { machineType, brand, problem } = await req.json();
+    let body: { machineType?: string; brand?: string; problem?: string };
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse("Invalid JSON body", 400);
+    }
+
+    const { machineType, brand, problem } = body;
 
     if (!machineType || !problem) {
       return errorResponse("machineType and problem are required", 400);
@@ -96,11 +98,11 @@ Deno.serve(async (req: Request) => {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (!wallet || wallet.balance < cost) {
+      if (!wallet || Number(wallet.balance) < cost) {
         return errorResponse("insufficient_balance", 402);
       }
 
-      const newBalance = wallet.balance - cost;
+      const newBalance = Number(wallet.balance) - cost;
 
       await supabaseClient.from("wallet_transactions").insert({
         wallet_id: wallet.id,
@@ -117,7 +119,7 @@ Deno.serve(async (req: Request) => {
         .from("wallets")
         .update({
           balance: newBalance,
-          total_spent: (wallet.total_spent ?? 0) + cost,
+          total_spent: (Number(wallet.total_spent) ?? 0) + cost,
         })
         .eq("id", wallet.id);
 
@@ -174,23 +176,17 @@ Respond ONLY with the JSON object, nothing else.`;
       );
 
       if (!openaiRes.ok) {
-        aiResponse = generateFallbackResponse(
-          cleanType,
-          cleanBrand,
-          cleanProblem
-        );
+        aiResponse = generateFallbackResponse(cleanType, cleanBrand, cleanProblem);
       } else {
         const openaiData = await openaiRes.json();
         const content = openaiData.choices?.[0]?.message?.content ?? "";
         try {
           const jsonMatch = content.match(/\{[\s\S]*\}/);
-          aiResponse = jsonMatch ? JSON.parse(jsonMatch[0]) : generateFallbackResponse(cleanType, cleanBrand, cleanProblem);
+          aiResponse = jsonMatch
+            ? JSON.parse(jsonMatch[0])
+            : generateFallbackResponse(cleanType, cleanBrand, cleanProblem);
         } catch {
-          aiResponse = generateFallbackResponse(
-            cleanType,
-            cleanBrand,
-            cleanProblem
-          );
+          aiResponse = generateFallbackResponse(cleanType, cleanBrand, cleanProblem);
         }
       }
     }

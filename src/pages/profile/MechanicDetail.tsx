@@ -139,8 +139,8 @@ export default function MechanicDetail() {
               <h1 className="text-2xl font-black text-white mt-4">{mechanic.profile?.name}</h1>
               <div className="flex items-center gap-2 mt-1">
                 <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                <span className="text-yellow-400 font-semibold">{mechanic.rating.toFixed(1)}</span>
-                <span className="text-gray-500 text-sm">({mechanic.total_reviews} {mechanic.total_reviews === 1 ? 'rating' : 'ratings'})</span>
+                <span className="text-yellow-400 font-semibold">{Number(mechanic.rating ?? 0).toFixed(1)}</span>
+                <span className="text-gray-500 text-sm">({mechanic.total_reviews ?? 0} {(mechanic.total_reviews ?? 0) === 1 ? 'rating' : 'ratings'})</span>
               </div>
               <p className="text-gray-600 text-xs mt-0.5">Avg. score from last 10 completed jobs</p>
 
