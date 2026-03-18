@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Bell, MessageSquare, ChevronDown, Wrench, LogOut, User, Settings, Search, Briefcase, Shield } from 'lucide-react';
+import { Menu, X, Bell, MessageSquare, ChevronDown, Wrench, LogOut, User, Settings, Search, Briefcase, Shield, Wallet } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -13,6 +13,7 @@ export default function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -28,8 +29,21 @@ export default function Navbar() {
         .eq('user_id', user.id)
         .eq('is_read', false)
         .then(({ count }) => setUnreadCount(count ?? 0));
+
+      supabase
+        .from('wallets')
+        .select('balance')
+        .eq('user_id', user.id)
+        .maybeSingle()
+        .then(({ data }) => setWalletBalance(data?.balance ?? 0));
     }
   }, [user]);
+
+  useEffect(() => {
+    if (profile) {
+      setWalletBalance(profile.wallet_balance ?? 0);
+    }
+  }, [profile]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -77,6 +91,16 @@ export default function Navbar() {
                     <Briefcase className="w-5 h-5" />
                   </Link>
                 )}
+
+                <Link
+                  to="/wallet"
+                  className="flex items-center gap-1.5 text-xs font-semibold border border-gray-700 hover:border-yellow-400/60 text-gray-300 hover:text-yellow-400 px-2.5 py-1.5 rounded-lg transition-colors"
+                  title="My Wallet"
+                >
+                  <Wallet className="w-3.5 h-3.5" />
+                  {walletBalance !== null ? `${walletBalance.toLocaleString()} ETB` : '—'}
+                </Link>
+
                 <Link to="/messages" className="relative text-gray-300 hover:text-yellow-400 transition-colors p-2">
                   <MessageSquare className="w-5 h-5" />
                 </Link>
@@ -109,9 +133,13 @@ export default function Navbar() {
                         <div className="px-4 py-3 border-b border-gray-700">
                           <p className="text-white text-sm font-medium">{profile?.name}</p>
                           <p className="text-gray-400 text-xs capitalize">{profile?.role?.replace('_', ' ')}</p>
+                          <p className="text-yellow-400 text-xs font-semibold mt-0.5">{walletBalance?.toLocaleString() ?? 0} ETB</p>
                         </div>
                         <Link to="/dashboard" onClick={() => setDropdownOpen(false)} className="flex items-center gap-2 px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white text-sm transition-colors">
                           <User className="w-4 h-4" /> Dashboard
+                        </Link>
+                        <Link to="/wallet" onClick={() => setDropdownOpen(false)} className="flex items-center gap-2 px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white text-sm transition-colors">
+                          <Wallet className="w-4 h-4" /> My Wallet
                         </Link>
                         <Link to="/profile" onClick={() => setDropdownOpen(false)} className="flex items-center gap-2 px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white text-sm transition-colors">
                           <Settings className="w-4 h-4" /> Settings
@@ -165,6 +193,10 @@ export default function Navbar() {
               <Link to="/search" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Search</Link>
               {user ? (
                 <>
+                  <Link to="/wallet" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 text-yellow-400 py-2 text-sm font-semibold">
+                    <Wallet className="w-4 h-4" />
+                    {walletBalance !== null ? `${walletBalance.toLocaleString()} ETB` : 'My Wallet'}
+                  </Link>
                   <Link to="/dashboard" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Dashboard</Link>
                   {(profile?.role === 'mechanic' || profile?.role === 'technician') && (
                     <Link to="/jobs" onClick={() => setMenuOpen(false)} className="block text-gray-300 hover:text-yellow-400 py-2 text-sm font-medium">Jobs</Link>

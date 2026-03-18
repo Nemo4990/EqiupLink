@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Wallet as WalletIcon, Plus, ArrowDownLeft, ArrowUpRight, TrendingUp, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Wallet as WalletIcon, Plus, ArrowDownLeft, ArrowUpRight, TrendingUp,
+  Clock, CheckCircle, XCircle, AlertCircle, Wrench, Package, Truck,
+  Briefcase, Lock, Zap, ChevronRight
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Wallet, WalletTransaction } from '../../types';
@@ -11,6 +16,63 @@ import { formatDistanceToNow } from 'date-fns';
 
 const TOPUP_AMOUNTS = [50, 100, 200, 500, 1000];
 
+const CREDIT_RULES_INFO = [
+  {
+    icon: Wrench,
+    label: 'View Mechanic Contact',
+    roles: 'Owner / Customer',
+    cost: '1 credit',
+    free: null,
+    color: 'text-blue-400',
+    bg: 'bg-blue-900/20',
+  },
+  {
+    icon: Package,
+    label: 'View Part Supplier Contact',
+    roles: 'Owner / Customer',
+    cost: '1 credit',
+    free: null,
+    color: 'text-green-400',
+    bg: 'bg-green-900/20',
+  },
+  {
+    icon: Truck,
+    label: 'View Rental Provider Contact',
+    roles: 'Owner / Customer',
+    cost: '1 credit',
+    free: null,
+    color: 'text-orange-400',
+    bg: 'bg-orange-900/20',
+  },
+  {
+    icon: Briefcase,
+    label: 'Post Job / Breakdown Request',
+    roles: 'Owner',
+    cost: '2 credits',
+    free: '3 free',
+    color: 'text-yellow-400',
+    bg: 'bg-yellow-900/20',
+  },
+  {
+    icon: Lock,
+    label: 'Unlock Job Contact',
+    roles: 'Mechanic',
+    cost: '1 credit',
+    free: null,
+    color: 'text-cyan-400',
+    bg: 'bg-cyan-900/20',
+  },
+  {
+    icon: Package,
+    label: 'List Part / Rental Equipment',
+    roles: 'Supplier / Rental',
+    cost: '2 credits',
+    free: '3 free',
+    color: 'text-rose-400',
+    bg: 'bg-rose-900/20',
+  },
+];
+
 export default function WalletPage() {
   const { profile, refreshProfile } = useAuth();
   const [wallet, setWallet] = useState<Wallet | null>(null);
@@ -18,14 +80,13 @@ export default function WalletPage() {
   const [loading, setLoading] = useState(true);
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [showReAuth, setShowReAuth] = useState(false);
-  const [topupAmount, setTopupAmount] = useState(25);
+  const [topupAmount, setTopupAmount] = useState(100);
   const [customAmount, setCustomAmount] = useState('');
   const [useCustom, setUseCustom] = useState(false);
+  const [activeTab, setActiveTab] = useState<'history' | 'guide'>('history');
 
   useEffect(() => {
-    if (profile) {
-      fetchWalletData();
-    }
+    if (profile) fetchWalletData();
   }, [profile]);
 
   const fetchWalletData = async () => {
@@ -55,7 +116,7 @@ export default function WalletPage() {
         .select('*')
         .eq('wallet_id', walletData.id)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(50);
       setTransactions(txData || []);
     }
 
@@ -72,7 +133,7 @@ export default function WalletPage() {
 
   const handleTopupSuccess = async () => {
     setShowTopupModal(false);
-    toast.success('Top-up request submitted! Credits will be added once payment is verified.');
+    toast.success('Top-up request submitted! Credits will be added after payment verification.');
     await fetchWalletData();
     await refreshProfile();
   };
@@ -84,6 +145,16 @@ export default function WalletPage() {
       case 'refund': return <ArrowDownLeft className="w-4 h-4 text-blue-400" />;
       case 'bonus': return <TrendingUp className="w-4 h-4 text-amber-400" />;
       default: return <WalletIcon className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const txBg = (type: string) => {
+    switch (type) {
+      case 'purchase': return 'bg-green-900/30';
+      case 'deduction': return 'bg-red-900/30';
+      case 'refund': return 'bg-blue-900/30';
+      case 'bonus': return 'bg-amber-900/30';
+      default: return 'bg-gray-800';
     }
   };
 
@@ -100,138 +171,195 @@ export default function WalletPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
+  const balance = wallet?.balance ?? 0;
+  const lowBalance = balance < 5;
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-        <div className="max-w-4xl mx-auto px-4 py-12">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
-                <WalletIcon className="w-4 h-4" />
-                <span>My Wallet</span>
-              </div>
-              <h1 className="text-3xl font-bold">Credit Balance</h1>
-            </div>
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => setShowTopupModal(true)}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Credits
-            </motion.button>
-          </div>
+    <div className="min-h-screen bg-gray-950 pt-20 pb-12">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
 
-          <div className="mt-8 grid grid-cols-3 gap-4">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white/10 backdrop-blur rounded-2xl p-5"
-            >
-              <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Available Balance</p>
-              <p className="text-3xl font-bold text-white">{(wallet?.balance ?? 0).toLocaleString()} ETB</p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 }}
-              className="bg-white/10 backdrop-blur rounded-2xl p-5"
-            >
-              <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Total Purchased</p>
-              <p className="text-3xl font-bold text-green-400">{(wallet?.total_purchased ?? 0).toLocaleString()} ETB</p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white/10 backdrop-blur rounded-2xl p-5"
-            >
-              <p className="text-slate-400 text-xs uppercase tracking-wide mb-1">Total Spent</p>
-              <p className="text-3xl font-bold text-red-400">{(wallet?.total_spent ?? 0).toLocaleString()} ETB</p>
-            </motion.div>
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-1">
+            <WalletIcon className="w-6 h-6 text-yellow-400" />
+            <h1 className="text-2xl font-black text-white">My Wallet</h1>
           </div>
+          <p className="text-gray-400 text-sm">Credits power every action on EquipLink — top up anytime</p>
         </div>
-      </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`rounded-2xl border p-5 ${lowBalance ? 'bg-red-950/30 border-red-800/50' : 'bg-gray-900 border-gray-800'}`}
+          >
+            <p className="text-gray-400 text-xs uppercase tracking-wide mb-2">Available Balance</p>
+            <p className={`text-3xl font-black ${lowBalance ? 'text-red-400' : 'text-white'}`}>
+              {balance.toLocaleString()} <span className="text-lg font-semibold text-gray-400">ETB</span>
+            </p>
+            {lowBalance && (
+              <p className="text-red-400 text-xs mt-2 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> Low balance — top up to continue
+              </p>
+            )}
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="bg-gray-900 border border-gray-800 rounded-2xl p-5"
+          >
+            <p className="text-gray-400 text-xs uppercase tracking-wide mb-2">Total Purchased</p>
+            <p className="text-3xl font-black text-green-400">
+              {(wallet?.total_purchased ?? 0).toLocaleString()} <span className="text-lg font-semibold text-gray-500">ETB</span>
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-gray-900 border border-gray-800 rounded-2xl p-5"
+          >
+            <p className="text-gray-400 text-xs uppercase tracking-wide mb-2">Total Spent</p>
+            <p className="text-3xl font-black text-red-400">
+              {(wallet?.total_spent ?? 0).toLocaleString()} <span className="text-lg font-semibold text-gray-500">ETB</span>
+            </p>
+          </motion.div>
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Transaction History</h2>
-            {transactions.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-                <WalletIcon className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No transactions yet</p>
-                <p className="text-gray-400 text-sm mt-1">Top up your wallet to get started</p>
-              </div>
-            ) : (
-              <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
-                {transactions.map((tx, i) => (
-                  <motion.div
-                    key={tx.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                    className="flex items-center gap-4 p-4"
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      tx.type === 'purchase' || tx.type === 'bonus' ? 'bg-green-50' :
-                      tx.type === 'refund' ? 'bg-blue-50' : 'bg-red-50'
-                    }`}>
-                      {txIcon(tx.type)}
+            <div className="flex gap-2 mb-4">
+              {(['history', 'guide'] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setActiveTab(t)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    activeTab === t ? 'bg-yellow-400 text-gray-900' : 'bg-gray-800 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {t === 'history' ? 'Transaction History' : 'Credit Rules'}
+                </button>
+              ))}
+            </div>
+
+            <AnimatePresence mode="wait">
+              {activeTab === 'history' ? (
+                <motion.div
+                  key="history"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  {transactions.length === 0 ? (
+                    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-12 text-center">
+                      <WalletIcon className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+                      <p className="text-gray-400 font-medium">No transactions yet</p>
+                      <p className="text-gray-600 text-sm mt-1">Top up your wallet to get started</p>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-gray-900 font-medium text-sm truncate">{tx.description}</p>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        {txStatusIcon(tx.status)}
-                        <span className="text-gray-400 text-xs capitalize">{tx.status}</span>
-                        <span className="text-gray-300 text-xs">·</span>
-                        <span className="text-gray-400 text-xs">
-                          {formatDistanceToNow(new Date(tx.created_at), { addSuffix: true })}
-                        </span>
+                  ) : (
+                    <div className="bg-gray-900 border border-gray-800 rounded-2xl divide-y divide-gray-800 overflow-hidden">
+                      {transactions.map((tx, i) => (
+                        <motion.div
+                          key={tx.id}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.02 }}
+                          className="flex items-center gap-4 p-4 hover:bg-gray-800/40 transition-colors"
+                        >
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${txBg(tx.type)}`}>
+                            {txIcon(tx.type)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-gray-100 font-medium text-sm truncate">{tx.description}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {txStatusIcon(tx.status)}
+                              <span className="text-gray-500 text-xs capitalize">{tx.status}</span>
+                              <span className="text-gray-700 text-xs">·</span>
+                              <span className="text-gray-500 text-xs">
+                                {formatDistanceToNow(new Date(tx.created_at), { addSuffix: true })}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <span className={`font-bold text-sm ${
+                              tx.type === 'deduction' ? 'text-red-400' : 'text-green-400'
+                            }`}>
+                              {tx.type === 'deduction' ? '-' : '+'}{Math.abs(tx.amount).toLocaleString()} ETB
+                            </span>
+                            <p className="text-gray-600 text-xs mt-0.5">Bal: {tx.balance_after.toLocaleString()} ETB</p>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="guide"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-2"
+                >
+                  <p className="text-gray-400 text-sm mb-3">Credits are automatically deducted when you perform these actions. Each contact/resource is charged only once — repeat views are free.</p>
+                  {CREDIT_RULES_INFO.map((rule, i) => (
+                    <div key={i} className={`flex items-center gap-4 border border-gray-800 rounded-xl p-4 ${rule.bg}`}>
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-900/60`}>
+                        <rule.icon className={`w-4.5 h-4.5 ${rule.color}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium text-sm">{rule.label}</p>
+                        <p className="text-gray-500 text-xs mt-0.5">{rule.roles}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className={`font-bold text-sm ${rule.color}`}>{rule.cost}</p>
+                        {rule.free && (
+                          <p className="text-green-400 text-xs">{rule.free}</p>
+                        )}
                       </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <span className={`font-bold text-sm ${
-                        tx.type === 'deduction' ? 'text-red-600' : 'text-green-600'
-                      }`}>
-                        {tx.type === 'deduction' ? '-' : '+'}{Math.abs(tx.amount).toLocaleString()} ETB
-                      </span>
-                      <p className="text-gray-400 text-xs mt-0.5">Bal: {tx.balance_after.toLocaleString()} ETB</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
+                  ))}
+                  <div className="mt-4 bg-yellow-400/5 border border-yellow-400/20 rounded-xl p-4 flex items-start gap-3">
+                    <Zap className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-yellow-400/80 text-xs leading-relaxed">
+                      Pro subscribers get unlimited free job unlocks (mechanics) and reduced contact fees. <Link to="/subscription" className="text-yellow-400 font-semibold underline">Upgrade to Pro</Link>
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          <div>
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Quick Top-Up</h2>
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <div className="grid grid-cols-3 gap-2 mb-4">
+          <div className="space-y-4">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <h2 className="text-white font-bold mb-4">Quick Top-Up</h2>
+
+              <div className="grid grid-cols-3 gap-2 mb-3">
                 {TOPUP_AMOUNTS.map(amt => (
                   <button
                     key={amt}
                     onClick={() => { setTopupAmount(amt); setUseCustom(false); }}
                     className={`py-2 rounded-lg text-sm font-semibold transition-all ${
                       !useCustom && topupAmount === amt
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                        ? 'bg-yellow-400 text-gray-900'
+                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                     }`}
                   >
-                    {amt} ETB
+                    {amt}
                   </button>
                 ))}
                 <button
                   onClick={() => setUseCustom(true)}
                   className={`py-2 rounded-lg text-sm font-semibold transition-all col-span-3 ${
-                    useCustom ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    useCustom ? 'bg-yellow-400 text-gray-900' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                   }`}
                 >
                   Custom Amount
@@ -239,63 +367,66 @@ export default function WalletPage() {
               </div>
 
               {useCustom && (
-                <div className="mb-4">
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min={50}
-                      value={customAmount}
-                      onChange={(e) => setCustomAmount(e.target.value)}
-                      placeholder="Min 50 ETB"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  {useCustom && customAmount && parseFloat(customAmount) < 50 && (
-                    <p className="text-red-500 text-xs mt-1">Minimum top-up is 50 ETB</p>
+                <div className="mb-3">
+                  <input
+                    type="number"
+                    min={50}
+                    value={customAmount}
+                    onChange={(e) => setCustomAmount(e.target.value)}
+                    placeholder="Min 50 ETB"
+                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-yellow-400 transition-colors"
+                  />
+                  {customAmount && parseFloat(customAmount) < 50 && (
+                    <p className="text-red-400 text-xs mt-1">Minimum top-up is 50 ETB</p>
                   )}
                 </div>
               )}
 
-              <div className="bg-gray-50 rounded-xl p-3 mb-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Top-up amount</span>
-                  <span className="font-bold text-gray-900">{finalAmount ? `${finalAmount.toLocaleString()} ETB` : '—'}</span>
-                </div>
+              <div className="bg-gray-800/60 rounded-xl p-3 mb-4 flex items-center justify-between">
+                <span className="text-gray-400 text-sm">Amount</span>
+                <span className="font-bold text-white">{finalAmount ? `${finalAmount.toLocaleString()} ETB` : '—'}</span>
               </div>
 
-              <div className="bg-blue-50 rounded-xl p-3 mb-4 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                <p className="text-blue-700 text-xs">
-                  Credits are added to your wallet after payment verification by our team (usually within 1 hour).
+              <div className="bg-blue-900/20 border border-blue-800/40 rounded-xl p-3 mb-4 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+                <p className="text-blue-300 text-xs leading-relaxed">
+                  Credits are added after payment is verified by our team (usually within 1 hour).
                 </p>
               </div>
 
               <button
                 onClick={() => finalAmount && setShowReAuth(true)}
                 disabled={!finalAmount}
-                className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold py-3 rounded-xl text-sm transition-colors"
+                className="w-full flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-gray-700 disabled:text-gray-500 text-gray-900 font-bold py-3 rounded-xl text-sm transition-colors"
               >
-                Add {finalAmount ? `${finalAmount.toLocaleString()} ETB` : '0 ETB'} Credits
+                <Plus className="w-4 h-4" />
+                {finalAmount ? `Add ${finalAmount.toLocaleString()} ETB` : 'Select an Amount'}
               </button>
             </div>
 
-            <div className="mt-4 bg-white rounded-2xl border border-gray-100 p-5">
-              <h3 className="font-semibold text-gray-900 mb-3 text-sm">How it works</h3>
-              <ul className="space-y-2.5">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <h3 className="text-white font-semibold mb-3 text-sm">How Credits Work</h3>
+              <ul className="space-y-3">
                 {[
-                  'Add credits to your wallet',
-                  'Each job lead costs a small credit fee',
-                  'Unlock a job to see full contact details',
-                  'Pro subscribers get unlimited free access',
-                ].map((step, i) => (
-                  <li key={i} className="flex items-start gap-2.5">
-                    <div className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0 text-xs font-bold">
-                      {i + 1}
+                  { step: '1', text: 'Top up your wallet with ETB' },
+                  { step: '2', text: 'Credits deduct automatically per action' },
+                  { step: '3', text: 'Each contact unlocked once — free repeat views' },
+                  { step: '4', text: 'Pro plan gives unlimited job access' },
+                ].map(({ step, text }) => (
+                  <li key={step} className="flex items-start gap-3">
+                    <div className="w-5 h-5 rounded-full bg-yellow-400/20 text-yellow-400 flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5">
+                      {step}
                     </div>
-                    <p className="text-gray-600 text-xs">{step}</p>
+                    <p className="text-gray-400 text-xs leading-relaxed">{text}</p>
                   </li>
                 ))}
               </ul>
+              <Link
+                to="/subscription"
+                className="mt-4 flex items-center justify-between text-sm text-yellow-400 hover:text-yellow-300 transition-colors font-medium"
+              >
+                Upgrade to Pro <ChevronRight className="w-4 h-4" />
+              </Link>
             </div>
           </div>
         </div>

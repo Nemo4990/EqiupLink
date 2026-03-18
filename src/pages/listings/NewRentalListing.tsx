@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Truck, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { checkUserCanAct, spendCredits } from '../../lib/credits';
 import PhotoUpload from '../../components/ui/PhotoUpload';
 import toast from 'react-hot-toast';
 
@@ -36,6 +37,41 @@ export default function NewRentalListing() {
     }
 
     setLoading(true);
+
+    const { canActFree, cost, balance } = await checkUserCanAct(
+      profile.id,
+      'list_rental',
+      async () => {
+        const { count } = await supabase
+          .from('equipment_rentals')
+          .select('id', { count: 'exact', head: true })
+          .eq('provider_id', profile.id);
+        return count ?? 0;
+      }
+    );
+
+    if (!canActFree) {
+      if (balance < cost) {
+        toast.error(`You've used your 3 free listings. Add ${cost} ETB to your wallet to continue.`);
+        setLoading(false);
+        navigate('/wallet');
+        return;
+      }
+      const result = await spendCredits(
+        profile.id,
+        'list_rental',
+        `listing_rental_${Date.now()}`,
+        'rental',
+        `Rental listing credit — ${form.machine_model}`
+      );
+      if (!result.success && !result.alreadyGranted) {
+        toast.error('Failed to deduct credits. Please try again.');
+        setLoading(false);
+        return;
+      }
+      toast.success(`${cost} ETB deducted for this listing.`);
+    }
+
     const { error } = await supabase.from('equipment_rentals').insert({
       provider_id: profile.id,
       machine_model: form.machine_model,

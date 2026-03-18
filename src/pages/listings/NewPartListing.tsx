@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Package, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { checkUserCanAct, spendCredits } from '../../lib/credits';
 import PhotoUpload from '../../components/ui/PhotoUpload';
 import toast from 'react-hot-toast';
 
@@ -40,6 +41,41 @@ export default function NewPartListing() {
     }
 
     setLoading(true);
+
+    const { canActFree, cost, balance } = await checkUserCanAct(
+      profile.id,
+      'list_part',
+      async () => {
+        const { count } = await supabase
+          .from('parts_listings')
+          .select('id', { count: 'exact', head: true })
+          .eq('supplier_id', profile.id);
+        return count ?? 0;
+      }
+    );
+
+    if (!canActFree) {
+      if (balance < cost) {
+        toast.error(`You've used your 3 free listings. Add ${cost} ETB to your wallet to continue.`);
+        setLoading(false);
+        navigate('/wallet');
+        return;
+      }
+      const result = await spendCredits(
+        profile.id,
+        'list_part',
+        `listing_part_${Date.now()}`,
+        'part',
+        `Part listing credit — ${form.part_name}`
+      );
+      if (!result.success && !result.alreadyGranted) {
+        toast.error('Failed to deduct credits. Please try again.');
+        setLoading(false);
+        return;
+      }
+      toast.success(`${cost} ETB deducted for this listing.`);
+    }
+
     const { error } = await supabase.from('parts_listings').insert({
       supplier_id: profile.id,
       part_name: form.part_name,
