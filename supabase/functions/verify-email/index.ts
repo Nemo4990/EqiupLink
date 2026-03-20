@@ -388,11 +388,15 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // ─── GET /verify-email/verify?token=... ──────────────────────────────────
-    if (req.method === "GET" && path === "/verify") {
+    // ─── GET /verify-email/confirm?token=... (called by frontend) ────────────
+    // ─── GET /verify-email/verify?token=... (legacy redirect flow) ────────────
+    if (req.method === "GET" && (path === "/confirm" || path === "/verify")) {
       const token = url.searchParams.get("token");
       if (!token) {
-        return Response.redirect(`${BASE_URL}/error?reason=missing_token`, 302);
+        if (path === "/verify") return Response.redirect(`${BASE_URL}/error?reason=missing_token`, 302);
+        return new Response(JSON.stringify({ error: "Missing token" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       const { data: record, error: fetchErr } = await db
@@ -402,22 +406,40 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
 
       if (fetchErr || !record) {
-        return Response.redirect(`${BASE_URL}/error?reason=invalid_token`, 302);
+        if (path === "/verify") return Response.redirect(`${BASE_URL}/error?reason=invalid_token`, 302);
+        return new Response(JSON.stringify({ error: "Invalid verification link." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       if (record.used_at) {
-        return Response.redirect(`${BASE_URL}/error?reason=already_used`, 302);
+        if (path === "/verify") return Response.redirect(`${BASE_URL}/error?reason=already_used`, 302);
+        return new Response(JSON.stringify({ error: "This verification link has already been used." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       if (new Date(record.expires_at) < new Date()) {
-        return Response.redirect(`${BASE_URL}/error?reason=expired_token`, 302);
+        if (path === "/verify") return Response.redirect(`${BASE_URL}/error?reason=expired_token`, 302);
+        return new Response(JSON.stringify({ error: "This verification link has expired. Please request a new one." }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       await db.from("email_verifications").update({ used_at: new Date().toISOString() }).eq("id", record.id);
-
       await db.auth.admin.updateUserById(record.user_id, { email_confirm: true });
 
-      return Response.redirect(`${BASE_URL}/success`, 302);
+      const { data: profile } = await db
+        .from("profiles")
+        .select("role")
+        .eq("id", record.user_id)
+        .maybeSingle();
+
+      if (path === "/verify") return Response.redirect(`${BASE_URL}/verify-email?verified=1`, 302);
+
+      return new Response(JSON.stringify({ success: true, role: profile?.role ?? null }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(JSON.stringify({ error: "Not found" }), {

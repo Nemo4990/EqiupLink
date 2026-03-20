@@ -24,12 +24,39 @@ export default function VerifyEmail() {
   const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
+    const customToken = searchParams.get('token');
     const token_hash = searchParams.get('token_hash');
     const type = searchParams.get('type');
     const accessToken = searchParams.get('access_token');
     const refreshToken = searchParams.get('refresh_token');
 
     const verify = async () => {
+      if (customToken) {
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          const res = await fetch(
+            `${supabaseUrl}/functions/v1/verify-email/confirm?token=${customToken}`,
+            { headers: { Authorization: `Bearer ${supabaseAnonKey}` } }
+          );
+
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            setState('error');
+            setErrorMessage(body.error ?? 'Invalid or expired verification link.');
+            return;
+          }
+
+          const data = await res.json();
+          setState('success');
+          startRedirect(data.role);
+        } catch {
+          setState('error');
+          setErrorMessage('Something went wrong. Please try again.');
+        }
+        return;
+      }
+
       if (accessToken && refreshToken) {
         const { data, error } = await supabase.auth.setSession({
           access_token: accessToken,
