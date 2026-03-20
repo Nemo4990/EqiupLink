@@ -23,20 +23,23 @@ export default function Search() {
   const [rentals, setRentals] = useState<EquipmentRental[]>([]);
 
   const doSearch = async (q: string) => {
-    if (!q.trim()) {
-      setMechanics([]);
-      setParts([]);
-      setRentals([]);
-      return;
-    }
     setLoading(true);
-    const term = q.toLowerCase();
 
     const [mechRes, partsRes, rentalsRes] = await Promise.all([
       supabase.from('mechanic_profiles').select('*, profile:profiles!mechanic_profiles_user_id_fkey(*)'),
       supabase.from('parts_listings').select('*, supplier:profiles!parts_listings_supplier_id_fkey(name)').eq('is_active', true),
       supabase.from('equipment_rentals').select('*, provider:profiles!equipment_rentals_provider_id_fkey(name)').eq('is_available', true),
     ]);
+
+    if (!q.trim()) {
+      setMechanics((mechRes.data || []) as MechanicProfile[]);
+      setParts((partsRes.data || []) as PartsListing[]);
+      setRentals((rentalsRes.data || []) as EquipmentRental[]);
+      setLoading(false);
+      return;
+    }
+
+    const term = q.toLowerCase();
 
     const mechs = ((mechRes.data || []) as MechanicProfile[]).filter(m =>
       m.profile?.name?.toLowerCase().includes(term) ||
@@ -66,7 +69,7 @@ export default function Search() {
     setLoading(false);
   };
 
-  useEffect(() => { if (query) doSearch(query); }, []);
+  useEffect(() => { doSearch(query); }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,7 +86,7 @@ export default function Search() {
     <div className="min-h-screen bg-gray-950 pt-20 pb-12">
       <div className="bg-gradient-to-b from-gray-900 to-gray-950 border-b border-gray-800 py-10">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-black text-white mb-4">Search EquipLink</h1>
+          <h1 className="text-3xl font-black text-white mb-4">{query ? 'Search Results' : 'Browse Marketplace'}</h1>
 
           <form onSubmit={handleSearch} className="flex gap-3">
             <div className="relative flex-1">
@@ -133,13 +136,7 @@ export default function Search() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loading ? (
           <div className="flex justify-center py-20"><LoadingSpinner size="lg" text="Searching..." /></div>
-        ) : !query ? (
-          <div className="text-center py-20">
-            <SearchIcon className="w-16 h-16 text-gray-700 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-white mb-2">Search the marketplace</h3>
-            <p className="text-gray-400">Find mechanics, spare parts, and equipment rentals</p>
-          </div>
-        ) : totalResults === 0 ? (
+        ) : totalResults === 0 && query ? (
           <div className="text-center py-20">
             <SearchIcon className="w-16 h-16 text-gray-700 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-white mb-2">No results for "{query}"</h3>

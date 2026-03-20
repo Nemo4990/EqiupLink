@@ -544,7 +544,7 @@ export default function Landing() {
                   )}
                   {(profile?.role !== 'supplier' && profile?.role !== 'rental_provider') && (
                     <Link
-                      to="/marketplace/mechanics"
+                      to="/search"
                       className="flex items-center justify-center gap-2 border border-gray-600 hover:border-yellow-400 text-white hover:text-yellow-400 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
                     >
                       Browse Marketplace <ArrowRight className="w-5 h-5" />
@@ -564,7 +564,7 @@ export default function Landing() {
                     <Users className="w-5 h-5" /> Create Free Account
                   </Link>
                   <Link
-                    to="/marketplace/mechanics"
+                    to="/search"
                     className="flex items-center justify-center gap-2 border border-gray-600 hover:border-yellow-400 text-white hover:text-yellow-400 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
                   >
                     Browse Marketplace <ArrowRight className="w-5 h-5" />

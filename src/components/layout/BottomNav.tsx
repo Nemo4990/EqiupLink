@@ -23,7 +23,7 @@ export default function BottomNav({ unreadCount }: BottomNavProps) {
 
   const tabs: NavTab[] = [
     { to: '/dashboard', icon: Home, label: 'Home', matchPaths: ['/dashboard'] },
-    { to: '/marketplace/mechanics', icon: Grid3X3, label: 'Browse', matchPaths: ['/marketplace', '/breakdown', '/forum', '/search'] },
+    { to: '/search', icon: Grid3X3, label: 'Browse', matchPaths: ['/marketplace', '/search'] },
     ...(isMechanic ? [{ to: '/jobs', icon: Briefcase, label: 'Jobs', matchPaths: ['/jobs'] }] : []),
     ...(isOwner ? [{ to: '/my-requests', icon: Briefcase, label: 'Requests', matchPaths: ['/my-requests', '/requests'] }] : []),
     { to: '/messages', icon: MessageSquare, label: 'Messages', matchPaths: ['/messages'] },
