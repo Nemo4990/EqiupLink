@@ -156,9 +156,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/verify-email`,
-      },
     });
     if (error) return { error, needsVerification: false };
     if (data.user) {

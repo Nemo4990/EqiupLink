@@ -238,7 +238,7 @@ async function sendViaResend(to: string, toName: string, subject: string, html: 
     },
     body: JSON.stringify({
       from: `${FROM_NAME} <${FROM_EMAIL}>`,
-      to: [{ email: to, name: toName }],
+      to: [to],
       subject,
       html,
     }),
