@@ -169,6 +169,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role,
       });
       if (profileError) return { error: profileError, needsVerification: false };
+
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-registration-emails`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ name, email, role }),
+      }).catch(() => {});
     }
     const needsVerification = !data.session;
     return { error: null, needsVerification };
