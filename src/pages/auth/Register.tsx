@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Wrench, Mail, Lock, User, Eye, EyeOff, AlertCircle, HardHat, Truck, Package, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Wrench, Mail, Lock, User, Eye, EyeOff, AlertCircle, HardHat, Truck, Package, CheckCircle, ArrowLeft, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -11,6 +11,8 @@ const ROLES = [
   { id: 'supplier', label: 'Spare Parts Supplier', desc: 'List and sell spare parts', icon: Package, color: 'text-blue-400' },
   { id: 'rental_provider', label: 'Equipment Rental Provider', desc: 'List machines for rent', icon: Truck, color: 'text-green-400' },
 ];
+
+const RESEND_COOLDOWN = 60;
 
 export default function Register() {
   const { signUp } = useAuth();
@@ -25,6 +27,15 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [verificationSent, setVerificationSent] = useState(false);
+  const [userId, setUserId] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendLoading, setResendLoading] = useState(false);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,15 +45,43 @@ export default function Register() {
       return;
     }
     setLoading(true);
-    const { error, needsVerification } = await signUp(email, password, name, role);
+    const { error, needsVerification, userId: uid } = await signUp(email, password, name, role);
     setLoading(false);
     if (error) {
       setError(error.message || 'Registration failed. Please try again.');
     } else if (needsVerification) {
+      if (uid) setUserId(uid);
       setVerificationSent(true);
+      setResendCooldown(RESEND_COOLDOWN);
     } else {
       toast.success('Account created! Welcome to EquipLink.');
       navigate('/dashboard');
+    }
+  };
+
+  const handleResend = async () => {
+    if (!userId || resendCooldown > 0 || resendLoading) return;
+    setResendLoading(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-email/resend`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ userId, name, email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to resend. Please try again later.');
+      } else {
+        toast.success('Verification email resent!');
+        setResendCooldown(RESEND_COOLDOWN);
+      }
+    } catch {
+      toast.error('Failed to resend. Please check your connection.');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -57,20 +96,44 @@ export default function Register() {
           <div className="w-20 h-20 bg-green-900/30 border border-green-700/50 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-400" />
           </div>
+
           <h1 className="text-3xl font-black text-white mb-3">Check your email</h1>
-          <p className="text-gray-400 text-base leading-relaxed mb-2">
+          <p className="text-gray-400 text-base leading-relaxed mb-1">
             We sent a verification link to
           </p>
           <p className="text-white font-semibold text-lg mb-6">{email}</p>
-          <p className="text-gray-500 text-sm mb-8">
-            Click the link in the email to verify your account and get started. Check your spam folder if you don't see it.
+
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-6 text-left">
+            <p className="text-gray-400 text-sm leading-relaxed">
+              Click the <span className="text-yellow-400 font-medium">Verify My Email Address</span> button in the email to activate your account. The link expires in <span className="text-white font-medium">1 hour</span>.
+            </p>
+          </div>
+
+          <p className="text-gray-500 text-sm mb-6">
+            Didn't receive it? Check your spam folder.
           </p>
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-2 text-yellow-400 hover:text-yellow-300 font-medium text-sm transition-colors"
+
+          <button
+            onClick={handleResend}
+            disabled={resendCooldown > 0 || resendLoading}
+            className="inline-flex items-center gap-2 text-sm font-medium mb-8 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-yellow-400 hover:text-yellow-300 disabled:text-gray-500"
           >
-            <ArrowLeft className="w-4 h-4" /> Back to Sign In
-          </Link>
+            <RefreshCw className={`w-4 h-4 ${resendLoading ? 'animate-spin' : ''}`} />
+            {resendLoading
+              ? 'Sending...'
+              : resendCooldown > 0
+              ? `Resend in ${resendCooldown}s`
+              : 'Resend verification email'}
+          </button>
+
+          <div>
+            <Link
+              to="/login"
+              className="inline-flex items-center gap-2 text-gray-400 hover:text-white font-medium text-sm transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back to Sign In
+            </Link>
+          </div>
         </motion.div>
       </div>
     );
