@@ -269,11 +269,34 @@ Deno.serve(async (req: Request) => {
   try {
     // ─── POST /verify-email/send ─────────────────────────────────────────────
     if (req.method === "POST" && path === "/send") {
-      const { userId, name, email, role } = await req.json();
+      const { userId, name, email, role, phone, location } = await req.json();
       if (!userId || !name || !email || !role) {
         return new Response(JSON.stringify({ error: "Missing required fields" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+
+      const { data: existingProfile } = await db
+        .from("profiles")
+        .select("id")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (!existingProfile) {
+        const { error: profileErr } = await db.from("profiles").insert({
+          id: userId,
+          name,
+          email,
+          role,
+          phone: phone ?? null,
+          location: location ?? null,
+        });
+        if (profileErr) {
+          console.error("Profile insert error:", profileErr);
+          return new Response(JSON.stringify({ error: "Failed to create user profile" }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
 
       const token = generateToken();

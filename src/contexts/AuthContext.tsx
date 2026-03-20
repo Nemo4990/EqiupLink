@@ -25,7 +25,7 @@ interface AuthContextType {
   loading: boolean;
   idleWarning: boolean;
   idleSecondsLeft: number;
-  signUp: (email: string, password: string, name: string, role: string) => Promise<{ error: Error | null; needsVerification: boolean; userId?: string }>;
+  signUp: (email: string, password: string, name: string, role: string, phone?: string, location?: string) => Promise<{ error: Error | null; needsVerification: boolean; userId?: string }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; profile: Profile | null; rateLimited?: boolean; remaining?: number; resetIn?: number }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -152,7 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, name: string, role: string) => {
+  const signUp = async (email: string, password: string, name: string, role: string, phone?: string, location?: string) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -162,23 +162,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     if (error) return { error, needsVerification: false };
     if (data.user) {
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: data.user.id,
-        name,
-        email,
-        role,
-      });
-      if (profileError) return { error: profileError, needsVerification: false };
-
-      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-email/send`, {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-email/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ userId: data.user.id, name, email, role }),
-      }).catch(() => {});
-
+        body: JSON.stringify({ userId: data.user.id, name, email, role, phone: phone || null, location: location || null }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return { error: new Error(body.error || 'Registration failed. Please try again.'), needsVerification: false };
+      }
       const needsVerification = !data.session;
       return { error: null, needsVerification, userId: data.user.id };
     }

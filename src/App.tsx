@@ -10,6 +10,7 @@ import Landing from './pages/Landing';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import VerifyEmail from './pages/auth/VerifyEmail';
+import EmailVerificationSent from './pages/auth/EmailVerificationSent';
 import Dashboard from './pages/dashboard/Dashboard';
 import Mechanics from './pages/marketplace/Mechanics';
 import Parts from './pages/marketplace/Parts';
@@ -102,6 +103,7 @@ function AppContent() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/verify-email-sent" element={<EmailVerificationSent />} />
         <Route path="/dashboard/technician" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/dashboard/owner" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/dashboard/supplier" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
