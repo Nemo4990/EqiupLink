@@ -32,12 +32,9 @@ export default function Mechanics() {
 
     const { data } = await query;
     let results = ((data || []) as MechanicProfile[]).filter(m =>
+      (m as any).is_verified === true &&
       m.profile?.is_approved &&
-      !m.profile?.is_suspended &&
-      m.profile?.contact_complete &&
-      m.years_experience != null &&
-      (m.specializations?.length ?? 0) > 0 &&
-      (m.profile?.location || m.service_area)
+      !m.profile?.is_suspended
     );
 
     if (search) {
@@ -77,7 +74,7 @@ export default function Mechanics() {
             <Wrench className="w-6 h-6 text-yellow-400" />
             <h1 className="text-3xl font-black text-white">Find Mechanics</h1>
           </div>
-          <p className="text-gray-400">Certified technicians for all heavy equipment brands</p>
+          <p className="text-gray-400">Admin-verified technicians for all heavy equipment brands</p>
 
           <form onSubmit={handleSearch} className="mt-6 flex gap-3">
             <div className="relative flex-1">
