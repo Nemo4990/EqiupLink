@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EquipLink</string>
+    <string name="title_activity_main">EquipLink</string>
+    <string name="package_name">com.equiplink.app</string>
+    <string name="custom_url_scheme">com.equiplink.app</string>
+</resources>
