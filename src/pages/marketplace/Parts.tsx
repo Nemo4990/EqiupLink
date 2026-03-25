@@ -22,7 +22,7 @@ export default function Parts() {
     setLoading(true);
     let query = supabase
       .from('parts_listings')
-      .select('*, supplier:profiles!parts_listings_supplier_id_fkey(name, phone, location)')
+      .select('*, supplier:profiles!parts_listings_supplier_id_fkey(name, phone, location, merchant_badge)')
       .eq('is_active', true)
       .order('created_at', { ascending: false });
 

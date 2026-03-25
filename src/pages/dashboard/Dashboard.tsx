@@ -11,6 +11,7 @@ import { supabase } from '../../lib/supabase';
 import { BreakdownRequest, Notification, Wallet as WalletType, Subscription, Commission } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmergencyRepairModal from '../../components/ui/EmergencyRepairModal';
+import SupplierDashboard from './SupplierDashboard';
 import { format, formatDistanceToNow } from 'date-fns';
 
 const URGENCY_COLORS: Record<string, string> = {
@@ -119,6 +120,8 @@ export default function Dashboard() {
   const isMechanic = profile?.role === 'mechanic';
   const isSupplier = profile?.role === 'supplier';
   const isRental = profile?.role === 'rental_provider';
+
+  if (isSupplier) return <SupplierDashboard />;
   const isPro = profile?.subscription_tier === 'pro';
 
   const totalEarnings = commissions.reduce((s, c) => s + (c.job_amount - c.commission_amount), 0);

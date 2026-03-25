@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Package, Tag, Layers, Lock, PhoneCall, X, Wallet, Zap } from 'lucide-react';
+import { Package, Tag, Layers, Lock, PhoneCall, X, Wallet, Zap, Award } from 'lucide-react';
 import { PartsListing } from '../../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -12,6 +12,13 @@ import toast from 'react-hot-toast';
 interface Props {
   part: PartsListing;
 }
+
+const BADGE_STYLES: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  bronze: { label: 'Bronze', color: 'text-amber-600', bg: 'bg-amber-900/30', icon: '🥉' },
+  silver: { label: 'Silver', color: 'text-slate-300', bg: 'bg-slate-800/50', icon: '🥈' },
+  gold: { label: 'Gold', color: 'text-yellow-400', bg: 'bg-yellow-900/30', icon: '🥇' },
+  platinum: { label: 'Platinum', color: 'text-cyan-300', bg: 'bg-cyan-900/30', icon: '💎' },
+};
 
 const CATEGORY_COLORS: Record<string, string> = {
   hydraulics: 'bg-blue-900/50 text-blue-300',
@@ -155,9 +162,21 @@ export default function PartCard({ part }: Props) {
             </div>
           )}
 
-          <div className="mt-3 text-sm text-gray-500">
-            <span>Supplier: </span>
-            <span className="text-gray-300">{part.supplier?.name || 'Unknown'}</span>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <div className="text-sm text-gray-500 min-w-0">
+              <span>Supplier: </span>
+              <span className="text-gray-300">{part.supplier?.name || 'Unknown'}</span>
+            </div>
+            {(() => {
+              const badge = (part.supplier as Record<string, unknown>)?.merchant_badge as string | undefined;
+              const cfg = badge ? BADGE_STYLES[badge] : null;
+              if (!cfg) return null;
+              return (
+                <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${cfg.bg} ${cfg.color}`}>
+                  <Award className="w-3 h-3" /> {cfg.icon} {cfg.label}
+                </span>
+              );
+            })()}
           </div>
 
           <button
