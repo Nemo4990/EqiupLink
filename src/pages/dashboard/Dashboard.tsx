@@ -12,6 +12,7 @@ import { BreakdownRequest, Notification, Wallet as WalletType, Subscription, Com
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmergencyRepairModal from '../../components/ui/EmergencyRepairModal';
 import SupplierDashboard from './SupplierDashboard';
+import MechanicDashboard from './MechanicDashboard';
 import { format, formatDistanceToNow } from 'date-fns';
 
 const URGENCY_COLORS: Record<string, string> = {
@@ -122,6 +123,7 @@ export default function Dashboard() {
   const isRental = profile?.role === 'rental_provider';
 
   if (isSupplier) return <SupplierDashboard />;
+  if (isMechanic) return <MechanicDashboard />;
   const isPro = profile?.subscription_tier === 'pro';
 
   const totalEarnings = commissions.reduce((s, c) => s + (c.job_amount - c.commission_amount), 0);
