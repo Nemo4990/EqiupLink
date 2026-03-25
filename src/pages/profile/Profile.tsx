@@ -441,8 +441,95 @@ export default function Profile() {
                 </div>
               )}
 
-              {/* Contact info status */}
-              {(['mechanic', 'supplier', 'rental_provider', 'owner', 'technician'].includes(profile?.role || '')) && (
+              {/* Mechanic marketplace visibility status */}
+              {isMechanic && (() => {
+                const missing: string[] = [];
+                if (!profile?.phone && !profile?.contact_phone) missing.push('Phone number');
+                if (!profile?.location && !mechanicData.service_area) missing.push('Location or service area');
+                if (!profile?.contact_complete) missing.push('Business contact info (phone/email + address)');
+                if ((mechanicData.specializations?.length ?? 0) === 0) missing.push('At least one specialization');
+                if (!mechanicData.years_experience || mechanicData.years_experience === 0) missing.push('Years of experience');
+                if (!profile?.bio) missing.push('Bio / description');
+                const isApproved = profile?.is_approved;
+                const isComplete = missing.length === 0;
+                const isListed = isApproved && isComplete;
+
+                return (
+                  <div className={`bg-gray-900 border rounded-2xl p-5 space-y-3 ${
+                    isListed ? 'border-green-500/25' : isApproved ? 'border-orange-500/25' : 'border-yellow-500/25'
+                  }`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Marketplace Visibility</h3>
+                        {isListed ? (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-400" />
+                            <span className="text-green-400 text-sm font-bold">Visible on marketplace</span>
+                          </div>
+                        ) : isApproved ? (
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-orange-400" />
+                            <span className="text-orange-400 text-sm font-bold">Profile incomplete — not visible yet</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-yellow-400" />
+                            <span className="text-yellow-400 text-sm font-bold">Awaiting admin approval</span>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setActiveTab('edit')}
+                        className="flex items-center gap-1.5 text-yellow-400 hover:text-yellow-300 text-xs font-semibold transition-colors flex-shrink-0"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" /> Complete Profile
+                      </button>
+                    </div>
+
+                    {!isApproved && (
+                      <p className="text-gray-500 text-xs bg-yellow-500/5 border border-yellow-500/10 rounded-lg p-3 leading-relaxed">
+                        Your account is pending admin review. Complete your profile while you wait — once approved and all required info is filled, you'll automatically appear in the mechanics marketplace.
+                      </p>
+                    )}
+
+                    {missing.length > 0 && (
+                      <div className="bg-orange-500/5 border border-orange-500/10 rounded-xl p-3">
+                        <p className="text-orange-400 text-xs font-semibold mb-2">Complete these to appear on the marketplace:</p>
+                        <div className="space-y-1.5">
+                          {missing.map(f => (
+                            <div key={f} className="flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0" />
+                              <span className="text-orange-300/80 text-xs">{f}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {isListed && (
+                      <p className="text-gray-500 text-xs">Clients can find and contact you. Keep your availability and info up to date.</p>
+                    )}
+
+                    {(mechanicData.specializations?.length ?? 0) > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {mechanicData.specializations!.map(s => (
+                          <span key={s} className="bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 text-xs px-2.5 py-1 rounded-lg capitalize">{s}</span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${mechanicData.is_available ? 'bg-green-400' : 'bg-gray-600'}`} />
+                      <span className={`text-xs font-medium ${mechanicData.is_available ? 'text-green-400' : 'text-gray-500'}`}>
+                        {mechanicData.is_available ? 'Available for jobs' : 'Not available right now'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Contact info status for non-mechanics */}
+              {!isMechanic && (['supplier', 'rental_provider', 'owner', 'technician'].includes(profile?.role || '')) && (
                 <div className={`bg-gray-900 border rounded-2xl p-5 ${
                   profile?.contact_complete ? 'border-green-500/20' : 'border-orange-500/20'
                 }`}>
@@ -476,46 +563,27 @@ export default function Profile() {
                 </div>
               )}
 
-              {/* Mechanic details preview */}
-              {isMechanic && mechanicData.specializations && (
-                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-3">
-                  <h3 className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Mechanic Info</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {mechanicData.years_experience != null && (
-                      <div className="bg-gray-800/50 rounded-xl p-3 flex items-center gap-3">
-                        <Clock className="w-4 h-4 text-yellow-400 flex-shrink-0" />
-                        <div>
-                          <p className="text-white text-sm font-semibold">{mechanicData.years_experience} yrs</p>
-                          <p className="text-gray-500 text-xs">Experience</p>
-                        </div>
-                      </div>
-                    )}
-                    {mechanicData.hourly_rate != null && (
-                      <div className="bg-gray-800/50 rounded-xl p-3 flex items-center gap-3">
-                        <BarChart3 className="w-4 h-4 text-green-400 flex-shrink-0" />
-                        <div>
-                          <p className="text-white text-sm font-semibold">${mechanicData.hourly_rate}/hr</p>
-                          <p className="text-gray-500 text-xs">Rate</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {mechanicData.specializations?.length > 0 && (
-                    <div>
-                      <p className="text-gray-500 text-xs mb-2">Specializations</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {mechanicData.specializations.map(s => (
-                          <span key={s} className="bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 text-xs px-2.5 py-1 rounded-lg capitalize">{s}</span>
-                        ))}
+              {/* Mechanic details preview (only when complete) */}
+              {isMechanic && (mechanicData.years_experience || mechanicData.hourly_rate) && (
+                <div className="grid grid-cols-2 gap-3">
+                  {mechanicData.years_experience != null && mechanicData.years_experience > 0 && (
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center gap-3">
+                      <Clock className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                      <div>
+                        <p className="text-white text-sm font-semibold">{mechanicData.years_experience} yrs</p>
+                        <p className="text-gray-500 text-xs">Experience</p>
                       </div>
                     </div>
                   )}
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${mechanicData.is_available ? 'bg-green-400' : 'bg-gray-600'}`} />
-                    <span className={`text-xs font-medium ${mechanicData.is_available ? 'text-green-400' : 'text-gray-500'}`}>
-                      {mechanicData.is_available ? 'Available for jobs' : 'Not available'}
-                    </span>
-                  </div>
+                  {mechanicData.hourly_rate != null && (
+                    <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center gap-3">
+                      <BarChart3 className="w-4 h-4 text-green-400 flex-shrink-0" />
+                      <div>
+                        <p className="text-white text-sm font-semibold">{mechanicData.hourly_rate} ETB/hr</p>
+                        <p className="text-gray-500 text-xs">Hourly Rate</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

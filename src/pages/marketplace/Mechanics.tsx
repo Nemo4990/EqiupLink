@@ -23,6 +23,7 @@ export default function Mechanics() {
     let query = supabase
       .from('mechanic_profiles')
       .select('*, profile:profiles!mechanic_profiles_user_id_fkey(*)')
+      .eq('profile.is_approved', true)
       .order('rating', { ascending: false });
 
     if (availableOnly) query = query.eq('is_available', true);
@@ -30,7 +31,14 @@ export default function Mechanics() {
     if (selectedBrand) query = query.contains('supported_brands', [selectedBrand]);
 
     const { data } = await query;
-    let results = (data || []) as MechanicProfile[];
+    let results = ((data || []) as MechanicProfile[]).filter(m =>
+      m.profile?.is_approved &&
+      !m.profile?.is_suspended &&
+      m.profile?.contact_complete &&
+      m.years_experience != null &&
+      (m.specializations?.length ?? 0) > 0 &&
+      (m.profile?.location || m.service_area)
+    );
 
     if (search) {
       const s = search.toLowerCase();

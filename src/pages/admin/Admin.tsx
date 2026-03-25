@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Users, Package, Truck, AlertTriangle, CheckCircle, XCircle, Activity, BarChart3, CreditCard, DollarSign, Clock, Plus, Trash2, Pencil, X, Save, Mail, Phone, MapPin, Globe, TrendingUp, Crown, Wallet, PercentSquare, Settings, FileText } from 'lucide-react';
+import { Shield, Users, Package, Truck, AlertTriangle, CheckCircle, XCircle, Activity, BarChart3, CreditCard, DollarSign, Clock, Plus, Trash2, Pencil, X, Save, Mail, Phone, MapPin, Globe, TrendingUp, Crown, Wallet, PercentSquare, Settings, FileText, Search } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Profile, BreakdownRequest, UserPayment, PaymentMethod, Commission, Subscription, SubscriptionPlan, PlatformSetting } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
@@ -9,7 +9,36 @@ import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 
-type AdminTab = 'overview' | 'users' | 'payments' | 'payment_methods' | 'subscriptions' | 'commissions' | 'breakdowns' | 'listings' | 'site_stats' | 'contact' | 'platform_settings' | 'legal';
+type AdminTab = 'overview' | 'users' | 'mechanics' | 'payments' | 'payment_methods' | 'subscriptions' | 'commissions' | 'breakdowns' | 'listings' | 'site_stats' | 'contact' | 'platform_settings' | 'legal';
+
+interface MechanicWithProfile {
+  id: string;
+  user_id: string;
+  specializations: string[];
+  years_experience: number;
+  service_area: string | null;
+  supported_brands: string[];
+  hourly_rate: number | null;
+  is_available: boolean;
+  rating: number;
+  total_reviews: number;
+  created_at: string;
+  profile: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string | null;
+    location: string | null;
+    bio: string | null;
+    avatar_url: string | null;
+    is_approved: boolean;
+    is_suspended: boolean;
+    contact_phone: string | null;
+    contact_email: string | null;
+    contact_address: string | null;
+    contact_complete: boolean;
+  } | null;
+}
 
 interface LegalSettings {
   id: string;
@@ -74,6 +103,8 @@ export default function Admin() {
   const [legalSettings, setLegalSettings] = useState<LegalSettings | null>(null);
   const [legalForm, setLegalForm] = useState({ privacy_email: '', legal_email: '' });
   const [savingLegal, setSavingLegal] = useState(false);
+  const [mechanicProfiles, setMechanicProfiles] = useState<MechanicWithProfile[]>([]);
+  const [mechSearch, setMechSearch] = useState('');
 
   useEffect(() => {
     loadData();
@@ -95,6 +126,7 @@ export default function Admin() {
       { data: subPlansData },
       { data: platformSettingsData },
       { data: legalSettingsData },
+      { data: mechanicProfilesData },
     ] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('breakdown_requests')
@@ -118,6 +150,7 @@ export default function Admin() {
       supabase.from('subscription_plans').select('*').order('price_monthly'),
       supabase.from('platform_settings').select('*').order('setting_key'),
       supabase.from('legal_settings').select('*').maybeSingle(),
+      supabase.from('mechanic_profiles').select('*, profile:profiles!mechanic_profiles_user_id_fkey(id,name,email,phone,location,bio,avatar_url,is_approved,is_suspended,contact_phone,contact_email,contact_address,contact_complete)').order('created_at', { ascending: false }),
     ]);
 
     const allUsers = (usersData || []) as Profile[];
@@ -130,6 +163,7 @@ export default function Admin() {
     setCommissions(allCommissions);
     setSubscriptions((subscriptionsData || []) as Subscription[]);
     setSubPlans((subPlansData || []) as SubscriptionPlan[]);
+    setMechanicProfiles((mechanicProfilesData || []) as MechanicWithProfile[]);
     const ps = (platformSettingsData || []) as PlatformSetting[];
     setPlatformSettings(ps);
     const psForm: Record<string, string> = {};
@@ -546,9 +580,12 @@ export default function Admin() {
     setSavingPlatformSettings(false);
   };
 
+  const pendingMechanics = mechanicProfiles.filter(m => !m.profile?.is_approved && !m.profile?.is_suspended);
+
   const TABS: { id: AdminTab; label: string; icon: React.FC<{ className?: string }>; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'users', label: 'Users', icon: Users },
+    { id: 'mechanics', label: 'Mechanics', icon: Activity, badge: pendingMechanics.length },
     { id: 'payments', label: 'Payments', icon: CreditCard, badge: stats.pendingPayments },
     { id: 'payment_methods', label: 'Payment Methods', icon: DollarSign },
     { id: 'subscriptions', label: 'Subscriptions', icon: Crown, badge: stats.activeSubscriptions },
@@ -695,6 +732,126 @@ export default function Admin() {
                     </div>
                   </div>
                 ))}
+              </motion.div>
+            )}
+
+            {tab === 'mechanics' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+                  <div className="flex-1 grid grid-cols-3 gap-3">
+                    {[
+                      { label: 'Pending Approval', count: mechanicProfiles.filter(m => !m.profile?.is_approved).length, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
+                      { label: 'Approved & Active', count: mechanicProfiles.filter(m => m.profile?.is_approved && !m.profile?.is_suspended).length, color: 'text-green-400', bg: 'bg-green-400/10' },
+                      { label: 'Profile Incomplete', count: mechanicProfiles.filter(m => m.profile?.is_approved && !m.profile?.contact_complete).length, color: 'text-orange-400', bg: 'bg-orange-400/10' },
+                    ].map(s => (
+                      <div key={s.label} className={`bg-gray-900 border border-gray-800 rounded-xl p-4`}>
+                        <p className={`text-2xl font-black ${s.color}`}>{s.count}</p>
+                        <p className="text-gray-400 text-xs mt-1">{s.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <input
+                      type="text"
+                      value={mechSearch}
+                      onChange={e => setMechSearch(e.target.value)}
+                      placeholder="Search mechanics..."
+                      className="bg-gray-900 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-500 rounded-xl py-2.5 pl-9 pr-4 outline-none transition-colors w-full sm:w-64 text-sm"
+                    />
+                  </div>
+                </div>
+
+                {mechanicProfiles.filter(m => {
+                  if (!mechSearch) return true;
+                  const s = mechSearch.toLowerCase();
+                  return m.profile?.name?.toLowerCase().includes(s) || m.profile?.email?.toLowerCase().includes(s) || m.profile?.location?.toLowerCase().includes(s);
+                }).length === 0 ? (
+                  <div className="text-center py-16">
+                    <Activity className="w-16 h-16 text-gray-700 mx-auto mb-4" />
+                    <p className="text-gray-400">No mechanic profiles found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {mechanicProfiles.filter(m => {
+                      if (!mechSearch) return true;
+                      const s = mechSearch.toLowerCase();
+                      return m.profile?.name?.toLowerCase().includes(s) || m.profile?.email?.toLowerCase().includes(s) || m.profile?.location?.toLowerCase().includes(s);
+                    }).map(m => {
+                      const profile = m.profile;
+                      const missingFields: string[] = [];
+                      if (!profile?.phone && !profile?.contact_phone) missingFields.push('Phone number');
+                      if (!profile?.location && !m.service_area) missingFields.push('Location / service area');
+                      if (!profile?.contact_complete) missingFields.push('Business contact info');
+                      if ((m.specializations?.length ?? 0) === 0) missingFields.push('Specializations');
+                      if (m.years_experience == null || m.years_experience === 0) missingFields.push('Years of experience');
+                      if (!profile?.bio) missingFields.push('Bio / description');
+                      const isReady = missingFields.length === 0;
+
+                      return (
+                        <div key={m.id} className={`bg-gray-900 border rounded-xl p-4 ${!profile?.is_approved ? 'border-yellow-800/50' : profile?.is_suspended ? 'border-red-800/50' : 'border-gray-800'}`}>
+                          <div className="flex items-start gap-4 flex-wrap">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center text-gray-900 font-bold text-sm flex-shrink-0">
+                              {profile?.name?.charAt(0) || 'M'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <p className="text-white font-semibold">{profile?.name || 'Unknown'}</p>
+                                {!profile?.is_approved && <span className="text-xs px-2 py-0.5 bg-yellow-900/50 text-yellow-400 border border-yellow-800/50 rounded-full">Pending Approval</span>}
+                                {profile?.is_approved && !profile?.is_suspended && <span className="text-xs px-2 py-0.5 bg-green-900/50 text-green-400 border border-green-800/50 rounded-full">Approved</span>}
+                                {profile?.is_suspended && <span className="text-xs px-2 py-0.5 bg-red-900/50 text-red-400 border border-red-800/50 rounded-full">Suspended</span>}
+                                {profile?.is_approved && !isReady && <span className="text-xs px-2 py-0.5 bg-orange-900/50 text-orange-400 border border-orange-800/50 rounded-full">Profile Incomplete</span>}
+                                {profile?.is_approved && isReady && <span className="text-xs px-2 py-0.5 bg-blue-900/50 text-blue-400 border border-blue-800/50 rounded-full">Listed on Marketplace</span>}
+                              </div>
+                              <p className="text-gray-500 text-xs">{profile?.email}</p>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-gray-400">
+                                {profile?.location && <span>📍 {profile.location}</span>}
+                                {m.service_area && <span>🛠 {m.service_area}</span>}
+                                {m.years_experience > 0 && <span>{m.years_experience} yrs exp</span>}
+                                {m.hourly_rate && <span>{m.hourly_rate} ETB/hr</span>}
+                              </div>
+                              {(m.specializations?.length ?? 0) > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {m.specializations.map(s => (
+                                    <span key={s} className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded capitalize">{s}</span>
+                                  ))}
+                                </div>
+                              )}
+                              {missingFields.length > 0 && (
+                                <div className="mt-2 p-2.5 bg-orange-900/10 border border-orange-800/30 rounded-lg">
+                                  <p className="text-orange-400 text-xs font-semibold mb-1">Missing required fields (not yet visible on marketplace):</p>
+                                  <ul className="list-disc list-inside space-y-0.5">
+                                    {missingFields.map(f => <li key={f} className="text-orange-300/80 text-xs">{f}</li>)}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
+                              {!profile?.is_approved && (
+                                <button
+                                  onClick={() => approveProfile(m.user_id)}
+                                  className="text-xs bg-green-900/30 text-green-400 border border-green-800 px-3 py-1.5 rounded-lg hover:bg-green-900/50 transition-colors flex items-center gap-1"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5" /> Approve
+                                </button>
+                              )}
+                              <button
+                                onClick={() => toggleSuspend(m.user_id, profile?.is_suspended ?? false)}
+                                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                                  profile?.is_suspended
+                                    ? 'bg-green-900/30 text-green-400 border-green-800 hover:bg-green-900/50'
+                                    : 'bg-red-900/30 text-red-400 border-red-800 hover:bg-red-900/50'
+                                }`}
+                              >
+                                {profile?.is_suspended ? 'Unsuspend' : 'Suspend'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </motion.div>
             )}
 
