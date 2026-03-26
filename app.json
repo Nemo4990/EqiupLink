@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "EquipLink",
+    "slug": "equiplink",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./public/logo.png_(2).png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./public/logo.png_(2).png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.equiplink.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./public/logo.png_(2).png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.equiplink.app"
+    },
+    "web": {
+      "favicon": "./public/logo.png_(2).png"
+    }
+  }
+}
