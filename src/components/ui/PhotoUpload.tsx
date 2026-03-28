@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
-import { Camera, X, Upload, Image as ImageIcon } from 'lucide-react';
+import { Camera as CameraIcon, X, Upload, Image as ImageIcon } from 'lucide-react';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Capacitor } from '@capacitor/core';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -83,6 +85,54 @@ export default function PhotoUpload({
 
   const handleDragLeave = () => setDragOver(false);
 
+  const handleTakePhoto = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      inputRef.current?.click();
+      return;
+    }
+
+    try {
+      const photo = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Camera,
+      });
+
+      if (photo.dataUrl) {
+        const blob = await (await fetch(photo.dataUrl)).blob();
+        const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        await uploadFile(file);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+    }
+  };
+
+  const handleChooseFromGallery = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      inputRef.current?.click();
+      return;
+    }
+
+    try {
+      const photo = await Camera.getPhoto({
+        quality: 90,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Photos,
+      });
+
+      if (photo.dataUrl) {
+        const blob = await (await fetch(photo.dataUrl)).blob();
+        const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        await uploadFile(file);
+      }
+    } catch (error) {
+      console.error('Error choosing photo:', error);
+    }
+  };
+
   return (
     <div>
       <label className="block text-gray-300 text-sm font-medium mb-1.5">
@@ -105,7 +155,7 @@ export default function PhotoUpload({
             <X className="w-4 h-4 text-white" />
           </button>
           <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-white/80 text-xs">
-            <Camera className="w-3.5 h-3.5" />
+            <CameraIcon className="w-3.5 h-3.5" />
             <span>Photo uploaded</span>
           </div>
           <button
@@ -121,11 +171,10 @@ export default function PhotoUpload({
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
-          onClick={() => inputRef.current?.click()}
-          className={`relative border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all ${
+          className={`relative border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 transition-all ${
             dragOver
               ? 'border-yellow-400 bg-yellow-400/5'
-              : 'border-gray-700 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-800'
+              : 'border-gray-700 bg-gray-800/50'
           }`}
         >
           {uploading ? (
@@ -140,13 +189,29 @@ export default function PhotoUpload({
               </div>
               <div className="text-center">
                 <p className="text-gray-300 text-sm font-medium">
-                  {dragOver ? 'Drop image here' : 'Click or drag to upload'}
+                  {dragOver ? 'Drop image here' : 'Select photo source'}
                 </p>
                 <p className="text-gray-500 text-xs mt-1">JPG, PNG, WebP up to 10MB</p>
               </div>
-              <div className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm px-4 py-2 rounded-lg transition-colors">
-                <Upload className="w-4 h-4" />
-                Choose Photo
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
+                {Capacitor.isNativePlatform() && (
+                  <button
+                    type="button"
+                    onClick={handleTakePhoto}
+                    className="flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-gray-900 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors w-full sm:w-auto"
+                  >
+                    <CameraIcon className="w-4 h-4" />
+                    Take Photo
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={Capacitor.isNativePlatform() ? handleChooseFromGallery : () => inputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm px-4 py-2.5 rounded-lg transition-colors w-full sm:w-auto"
+                >
+                  <Upload className="w-4 h-4" />
+                  {Capacitor.isNativePlatform() ? 'Choose from Gallery' : 'Choose Photo'}
+                </button>
               </div>
             </>
           )}

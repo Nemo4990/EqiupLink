@@ -22,6 +22,7 @@ import Profile from './pages/profile/Profile';
 import MechanicDetail from './pages/profile/MechanicDetail';
 import Notifications from './pages/Notifications';
 import Admin from './pages/admin/Admin';
+import Announcements from './pages/admin/Announcements';
 import NewPartListing from './pages/listings/NewPartListing';
 import NewRentalListing from './pages/listings/NewRentalListing';
 import MachineDetail from './pages/machines/MachineDetail';
@@ -133,6 +134,7 @@ function AppContent() {
         <Route path="/commissions" element={<ProtectedRoute><Commissions /></ProtectedRoute>} />
         <Route path="/sessions" element={<ProtectedRoute><ActiveSessions /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><Admin /></ProtectedRoute>} />
+        <Route path="/admin/announcements" element={<ProtectedRoute requiredRole="admin"><Announcements /></ProtectedRoute>} />
         <Route path="/forum" element={<ForumList />} />
         <Route path="/forum/:postId" element={<ForumThread />} />
         <Route path="/forum/new" element={<ProtectedRoute><NewForumPost /></ProtectedRoute>} />

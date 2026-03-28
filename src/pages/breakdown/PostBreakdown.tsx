@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { AlertTriangle, ArrowLeft, Lock, Clock } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Lock, Clock, MapPin } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { locationService } from '../../lib/location';
 import PaymentModal from '../../components/ui/PaymentModal';
 import PhotoUpload from '../../components/ui/PhotoUpload';
 import toast from 'react-hot-toast';
@@ -65,6 +66,16 @@ export default function PostBreakdown() {
 
   const handleChange = (field: string, value: string) => setFormData(prev => ({ ...prev, [field]: value }));
 
+  const handleGetCurrentLocation = async () => {
+    const location = await locationService.getLocationString();
+    if (location) {
+      handleChange('location', location);
+      toast.success('Location captured');
+    } else {
+      toast.error('Unable to get current location');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile) return;
@@ -81,7 +92,7 @@ export default function PostBreakdown() {
 
     setLoading(true);
 
-    const { error } = await supabase.from('breakdown_requests').insert({
+    const { data: breakdown, error } = await supabase.from('breakdown_requests').insert({
       owner_id: profile.id,
       ...formData,
       image_url: photoUrl,
@@ -97,6 +108,16 @@ export default function PostBreakdown() {
         message: `Your breakdown request for ${formData.machine_model} has been posted and mechanics in your area have been notified.`,
         type: 'success',
       });
+
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-breakdown-notifications`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ breakdownId: breakdown.id }),
+      }).catch(err => console.error('Failed to send notifications:', err));
+
       toast.success('Breakdown request posted! Nearby mechanics will be notified.');
       navigate('/breakdown');
     }
@@ -220,14 +241,24 @@ export default function PostBreakdown() {
 
               <div>
                 <label className="block text-gray-300 text-sm font-medium mb-1.5">Location *</label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => handleChange('location', e.target.value)}
-                  required
-                  placeholder="e.g. Highway 90, Mile Marker 45, Houston TX"
-                  className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-2.5 px-3 outline-none transition-colors"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formData.location}
+                    onChange={(e) => handleChange('location', e.target.value)}
+                    required
+                    placeholder="e.g. Highway 90, Mile Marker 45, Houston TX"
+                    className="flex-1 bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-2.5 px-3 outline-none transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGetCurrentLocation}
+                    className="bg-gray-700 hover:bg-gray-600 text-gray-300 p-2.5 rounded-lg transition-colors flex-shrink-0"
+                    title="Use current location"
+                  >
+                    <MapPin className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             </div>
 

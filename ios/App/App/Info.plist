@@ -47,5 +47,21 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>EquipLink needs access to your camera to take photos of equipment, parts, and breakdown issues.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>EquipLink needs access to your photo library to select images for listings and breakdown reports.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>EquipLink needs permission to save photos to your library.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>EquipLink needs your location to show nearby mechanics and equipment rentals, and to help mechanics find breakdown locations.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>EquipLink needs your location to provide location-based services for breakdowns and nearby mechanics.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>EquipLink needs your location to provide location-based services for breakdowns and nearby mechanics.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

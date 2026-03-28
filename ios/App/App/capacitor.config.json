@@ -19,6 +19,13 @@
 	},
 	"packageClassList": [
 		"AppPlugin",
+		"CAPCameraPlugin",
+		"GeolocationPlugin",
+		"HapticsPlugin",
+		"LocalNotificationsPlugin",
+		"CAPNetworkPlugin",
+		"PushNotificationsPlugin",
+		"SharePlugin",
 		"SplashScreenPlugin",
 		"StatusBarPlugin"
 	]

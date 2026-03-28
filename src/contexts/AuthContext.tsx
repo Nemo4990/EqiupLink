@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useRef, useCallb
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { Profile } from '../types';
+import { notificationService } from '../lib/notifications';
 import {
   recordSession,
   revokeCurrentSession,
@@ -72,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (currentUser) {
       await revokeCurrentSession(currentUser.id);
       await logSecurityEvent(currentUser.id, 'logout', parseDeviceInfo().deviceName);
+      await notificationService.cleanup();
     }
     clearTimers();
     await supabase.auth.signOut();
@@ -231,6 +233,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (newDevice) {
         await sendNewDeviceNotification(data.user.id, deviceName);
       }
+
+      await notificationService.initialize(data.user.id);
+      await notificationService.setupNotificationListener(data.user.id);
     }
 
     return { error: null, profile: fetchedProfile, rateLimited: false, remaining: 5, resetIn: 0 };
