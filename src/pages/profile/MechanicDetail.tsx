@@ -31,6 +31,12 @@ export default function MechanicDetail() {
 
   useEffect(() => {
     if (!userId) return;
+
+    if (user && userId === user.id) {
+      navigate('/profile');
+      return;
+    }
+
     Promise.all([
       supabase
         .from('mechanic_profiles')
@@ -48,7 +54,7 @@ export default function MechanicDetail() {
       setReviews((r || []) as Review[]);
       setLoading(false);
     });
-  }, [userId]);
+  }, [userId, user, navigate]);
 
   useEffect(() => {
     if (user && userId && profile?.role !== 'admin') {

@@ -23,7 +23,7 @@ export default function Mechanics() {
     let query = supabase
       .from('mechanic_profiles')
       .select('*, profile:profiles!mechanic_profiles_user_id_fkey(*)')
-      .eq('profile.is_approved', true)
+      .eq('is_verified', true)
       .order('rating', { ascending: false });
 
     if (availableOnly) query = query.eq('is_available', true);
@@ -32,9 +32,9 @@ export default function Mechanics() {
 
     const { data } = await query;
     let results = ((data || []) as MechanicProfile[]).filter(m =>
-      (m as any).is_verified === true &&
-      m.profile?.is_approved &&
-      !m.profile?.is_suspended
+      m.profile?.is_approved === true &&
+      m.profile?.is_suspended !== true &&
+      m.profile?.role === 'mechanic'
     );
 
     if (search) {
