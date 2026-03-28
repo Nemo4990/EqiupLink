@@ -1,8 +1,78 @@
-# Building Android App Without Android Studio
+# Building Android App - Complete Guide
 
-This guide shows you how to build your EquipLink Android app without installing Android Studio.
+This guide shows you how to build your EquipLink Android app using Android Studio or alternative methods.
 
-## Option 1: Command Line Build (Recommended for Local Development)
+## Option 1: Android Studio (Recommended - You Have This Installed!)
+
+### Step 1: Sync Your Project
+
+Your web assets are already synced! The `android` folder is ready.
+
+### Step 2: Open in Android Studio
+
+1. Launch **Android Studio**
+2. Click **"Open"** or **"Open an Existing Project"**
+3. Navigate to your project folder
+4. Select the **`android`** folder (not the root folder)
+5. Click **OK**
+
+Android Studio will:
+- Load the project
+- Sync Gradle files (takes 1-3 minutes first time)
+- Download any missing dependencies
+
+### Step 3: Build the APK
+
+Once Gradle sync completes:
+
+**Method A - Build Menu:**
+1. Click **Build** in the top menu
+2. Select **Build Bundle(s) / APK(s)**
+3. Click **Build APK(s)**
+4. Wait 1-5 minutes for the build
+
+**Method B - Gradle Panel:**
+1. Open Gradle panel (elephant icon on right side)
+2. Expand **app** → **Tasks** → **build**
+3. Double-click **assembleDebug**
+
+### Step 4: Get Your APK
+
+When build completes, you'll see a notification:
+**"APK(s) generated successfully"**
+
+Click **"locate"** or find it at:
+```
+android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Step 5: Install on Device
+
+**Option A - Direct Install:**
+1. Connect your Android device via USB
+2. Enable Developer Options and USB Debugging on your phone
+3. Click the green **Run** button (▶) in Android Studio
+4. Select your device from the list
+
+**Option B - Manual Install:**
+1. Copy `app-debug.apk` to your phone
+2. Open the file on your phone
+3. Allow installation from unknown sources
+4. Tap **Install**
+
+### Making Changes
+
+After modifying your React code:
+
+```bash
+npm run mobile:build
+```
+
+Then rebuild in Android Studio (Build → Build APK).
+
+---
+
+## Option 2: Command Line Build (Faster Rebuilds)
 
 ### Prerequisites
 
@@ -100,7 +170,7 @@ The release APK will be at: `android/app/build/outputs/apk/release/app-release-u
 
 ---
 
-## Option 2: EAS Build (Cloud Building - No Setup Required)
+## Option 3: EAS Build (Cloud Building - No Setup Required)
 
 This option builds your app in the cloud without any local Android setup.
 
@@ -140,7 +210,7 @@ This option builds your app in the cloud without any local Android setup.
 
 ---
 
-## Option 3: Browser Testing (Fastest for Development)
+## Option 4: Browser Testing (Fastest for Development)
 
 Test most features without building an APK:
 
@@ -164,7 +234,7 @@ Test most features without building an APK:
 
 ---
 
-## Option 4: Lightweight VS Code Setup
+## Option 5: Lightweight VS Code Setup
 
 1. **Install VS Code Extensions**
    - Android for VS Code (by Arlack)
