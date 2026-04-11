@@ -133,12 +133,12 @@ export default function MyRequests() {
     const jobList = (jobs || []) as CompletedJob[];
 
     if (jobList.length > 0) {
-      const techIds = [...new Set(jobList.map(j => (j.technician as Record<string, string>)?.id).filter(Boolean))];
+      const requestIds = jobList.map(j => j.service_request_id).filter(Boolean);
       const { data: reviews } = await supabase
         .from('reviews')
-        .select('reviewed_id, reviewer_id, related_id')
+        .select('reviewed_id, related_id')
         .eq('reviewer_id', profile.id)
-        .in('reviewed_id', techIds);
+        .in('related_id', requestIds);
 
       const reviewedSet = new Set((reviews || []).map(r => `${r.reviewed_id}_${r.related_id}`));
       jobList.forEach(job => {
