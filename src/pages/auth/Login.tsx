@@ -66,8 +66,12 @@ export default function Login() {
       }
     } else {
       toast.success('Welcome back!');
-      const dest = from || (result.profile?.role ? ROLE_REDIRECT[result.profile.role] ?? '/dashboard' : '/dashboard');
-      navigate(dest, { replace: true });
+      if (result.profile && !result.profile.onboarding_completed) {
+        navigate('/onboarding', { replace: true });
+      } else {
+        const dest = from || (result.profile?.role ? ROLE_REDIRECT[result.profile.role] ?? '/dashboard' : '/dashboard');
+        navigate(dest, { replace: true });
+      }
     }
   };
 

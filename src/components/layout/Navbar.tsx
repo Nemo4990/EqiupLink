@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Bell, ChevronDown, Wrench, LogOut, User, Settings, Search, Briefcase, Shield, Wallet, Crown, Bot } from 'lucide-react';
+import { Menu, X, Bell, ChevronDown, Wrench, LogOut, User, Settings, Search, Briefcase, Shield, Wallet, Crown, Bot, Gift } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import BottomNav from './BottomNav';
@@ -160,6 +160,9 @@ export default function Navbar() {
                           </Link>
                           <Link to="/profile" className="flex items-center gap-2 px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white text-sm transition-colors">
                             <Settings className="w-4 h-4" /> Settings
+                          </Link>
+                          <Link to="/referrals" className="flex items-center gap-2 px-4 py-2 text-yellow-400 hover:bg-gray-800 text-sm transition-colors">
+                            <Gift className="w-4 h-4" /> Invite & Earn
                           </Link>
                           <Link to="/sessions" className="flex items-center gap-2 px-4 py-2 text-gray-300 hover:bg-gray-800 hover:text-white text-sm transition-colors">
                             <Shield className="w-4 h-4" /> Security

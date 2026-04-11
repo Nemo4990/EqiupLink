@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Wrench, Mail, Lock, User, Eye, EyeOff, AlertCircle, HardHat, Truck, Package, Phone, MapPin, ChevronDown } from 'lucide-react';
+import { Wrench, Mail, Lock, User, Eye, EyeOff, AlertCircle, HardHat, Truck, Package, Phone, MapPin, ChevronDown, Gift, Check, X as XIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { validateReferralCode, processReferral } from '../../lib/referrals';
 import toast from 'react-hot-toast';
 
 const ROLES = [
@@ -43,6 +44,29 @@ export default function Register() {
   const [role, setRole] = useState(searchParams.get('role') || 'owner');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [referralCode, setReferralCode] = useState(searchParams.get('ref') || '');
+  const [referralValid, setReferralValid] = useState<boolean | null>(null);
+  const [referralChecking, setReferralChecking] = useState(false);
+  const [referrerId, setReferrerId] = useState<string | null>(null);
+  const [referrerName, setReferrerName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const code = searchParams.get('ref');
+    if (code) {
+      setReferralCode(code);
+      checkReferral(code);
+    }
+  }, []);
+
+  const checkReferral = async (code: string) => {
+    if (!code || code.length < 4) { setReferralValid(null); setReferrerId(null); return; }
+    setReferralChecking(true);
+    const result = await validateReferralCode(code);
+    setReferralValid(result.valid);
+    setReferrerId(result.referrerId || null);
+    setReferrerName(result.referrerName || null);
+    setReferralChecking(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,10 +81,13 @@ export default function Register() {
     if (error) {
       setError(error.message || 'Registration failed. Please try again.');
     } else if (needsVerification) {
-      navigate('/verify-email-sent', { state: { name, email, userId }, replace: true });
+      if (userId && referrerId && referralValid) {
+        await processReferral(referrerId, userId).catch(() => {});
+      }
+      navigate('/verify-email-sent', { state: { name, email, userId, referrerId: referralValid ? referrerId : null }, replace: true });
     } else {
       toast.success('Account created! Welcome to EquipLink.');
-      navigate('/dashboard');
+      navigate('/onboarding');
     }
   };
 
@@ -199,6 +226,41 @@ export default function Register() {
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-gray-300 text-sm font-medium mb-1.5">Referral Code <span className="text-gray-500">(optional)</span></label>
+            <div className="relative">
+              <Gift className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                type="text"
+                value={referralCode}
+                onChange={(e) => {
+                  const val = e.target.value.toUpperCase();
+                  setReferralCode(val);
+                  if (val.length >= 4) checkReferral(val);
+                  else { setReferralValid(null); setReferrerId(null); }
+                }}
+                placeholder="Enter referral code"
+                maxLength={12}
+                className="w-full bg-gray-900 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-3 pl-10 pr-10 outline-none transition-colors font-mono tracking-wider"
+              />
+              {referralChecking && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+              )}
+              {!referralChecking && referralValid === true && (
+                <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400" />
+              )}
+              {!referralChecking && referralValid === false && (
+                <XIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400" />
+              )}
+            </div>
+            {referralValid === true && referrerName && (
+              <p className="text-green-400 text-xs mt-1">Referred by {referrerName} - you'll both get bonus credits!</p>
+            )}
+            {referralValid === false && referralCode.length >= 4 && (
+              <p className="text-red-400 text-xs mt-1">Invalid referral code</p>
+            )}
           </div>
 
           <button

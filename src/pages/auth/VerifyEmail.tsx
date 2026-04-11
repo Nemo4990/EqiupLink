@@ -6,15 +6,6 @@ import { supabase } from '../../lib/supabase';
 
 type VerifyState = 'verifying' | 'success' | 'error';
 
-const ROLE_REDIRECT: Record<string, string> = {
-  mechanic: '/dashboard/technician',
-  technician: '/dashboard/technician',
-  electrician: '/dashboard/technician',
-  owner: '/dashboard/owner',
-  supplier: '/dashboard/supplier',
-  rental_provider: '/dashboard',
-  admin: '/admin',
-};
 
 export default function VerifyEmail() {
   const [searchParams] = useSearchParams();
@@ -104,8 +95,8 @@ export default function VerifyEmail() {
     verify();
   }, []);
 
-  const startRedirect = (role?: string) => {
-    const dest = role ? (ROLE_REDIRECT[role] ?? '/dashboard') : '/dashboard';
+  const startRedirect = (_role?: string) => {
+    const dest = '/onboarding';
     let count = 5;
     setCountdown(count);
     const interval = setInterval(() => {

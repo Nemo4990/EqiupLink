@@ -22,6 +22,10 @@ export interface Profile {
   contact_whatsapp: string | null;
   contact_other: string | null;
   contact_complete: boolean;
+  referral_code: string | null;
+  referred_by: string | null;
+  onboarding_completed: boolean;
+  signup_credits_granted: boolean;
   created_at: string;
   updated_at: string;
 }

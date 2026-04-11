@@ -22,7 +22,7 @@ export default function Rentals() {
     setLoading(true);
     let query = supabase
       .from('equipment_rentals')
-      .select('*, provider:profiles!equipment_rentals_provider_id_fkey(name, phone, location)')
+      .select('*, provider:profiles!equipment_rentals_provider_id_fkey(name, phone, location, contact_phone, contact_email, contact_address, contact_telegram, contact_whatsapp)')
       .eq('is_available', true)
       .order('created_at', { ascending: false });
 

@@ -14,6 +14,8 @@ import {
   logSecurityEvent,
   parseDeviceInfo,
 } from '../lib/security';
+import { grantSignupCredits } from '../lib/signup-incentive';
+import { completeReferralRewards } from '../lib/referrals';
 
 const IDLE_TIMEOUT_MS = 60 * 60 * 1000;
 const IDLE_WARNING_MS = 5 * 60 * 1000;
@@ -236,6 +238,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       await notificationService.initialize(data.user.id);
       await notificationService.setupNotificationListener(data.user.id);
+
+      if (fetchedProfile && !fetchedProfile.signup_credits_granted) {
+        grantSignupCredits(data.user.id).catch(() => {});
+        completeReferralRewards(data.user.id).catch(() => {});
+      }
     }
 
     return { error: null, profile: fetchedProfile, rateLimited: false, remaining: 5, resetIn: 0 };

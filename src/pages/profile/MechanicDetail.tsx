@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Star, MapPin, Clock, Wrench, CheckCircle, ArrowLeft, Award, Lock, PhoneCall } from 'lucide-react';
+import { Star, MapPin, Clock, Wrench, CheckCircle, ArrowLeft, Award } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { MechanicProfile, Review } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
-import PaymentModal from '../../components/ui/PaymentModal';
-import ContactCard from '../../components/ui/ContactCard';
+import ContactUnlock from '../../components/ui/ContactUnlock';
+import ViralShareModal from '../../components/ui/ViralShareModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { format } from 'date-fns';
 
@@ -20,14 +20,11 @@ const SPECIALIZATION_COLORS: Record<string, string> = {
 export default function MechanicDetail() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [mechanic, setMechanic] = useState<MechanicProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hasAccess, setHasAccess] = useState(false);
-  const [pendingPayment, setPendingPayment] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
-  const [showContact, setShowContact] = useState(false);
+  const [showViralShare, setShowViralShare] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -55,57 +52,6 @@ export default function MechanicDetail() {
       setLoading(false);
     });
   }, [userId, user, navigate]);
-
-  useEffect(() => {
-    if (user && userId && profile?.role !== 'admin') {
-      Promise.all([
-        supabase
-          .from('contact_history')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('provider_id', userId)
-          .eq('contact_type', 'mechanic')
-          .maybeSingle(),
-        supabase
-          .from('user_payments')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('fee_type', 'mechanic_contact')
-          .eq('status', 'pending')
-          .maybeSingle(),
-      ]).then(([access, pending]) => {
-        setHasAccess(!!access.data);
-        setPendingPayment(!!pending.data);
-      });
-    } else if (profile?.role === 'admin') {
-      setHasAccess(true);
-    }
-  }, [user, userId, profile]);
-
-  const handleContact = () => {
-    if (!user) { navigate('/login'); return; }
-    if (hasAccess || profile?.role === 'admin') {
-      setShowContact(true);
-    } else {
-      setShowPayment(true);
-    }
-  };
-
-  const handlePaymentSuccess = async (method?: 'wallet' | 'manual') => {
-    if (method === 'wallet') {
-      await supabase.from('contact_history').insert({
-        user_id: user!.id,
-        provider_id: userId,
-        contact_type: 'mechanic',
-      });
-      setHasAccess(true);
-      setShowPayment(false);
-      setShowContact(true);
-    } else {
-      setPendingPayment(true);
-      setShowPayment(false);
-    }
-  };
 
   if (loading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
   if (!mechanic) return (
@@ -202,25 +148,22 @@ export default function MechanicDetail() {
                 </div>
               )}
 
-              <button
-                onClick={handleContact}
-                disabled={pendingPayment}
-                className={`mt-6 w-full flex items-center justify-center gap-2 font-bold py-3 rounded-xl transition-colors ${
-                  hasAccess
-                    ? 'bg-green-600 hover:bg-green-500 text-white'
-                    : pendingPayment
-                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                    : 'bg-yellow-400/20 hover:bg-yellow-400/30 text-yellow-400 border border-yellow-400/50'
-                }`}
-              >
-                {hasAccess ? (
-                  <><PhoneCall className="w-5 h-5" /> View Contact Details</>
-                ) : pendingPayment ? (
-                  <><Clock className="w-5 h-5" /> Payment Pending Approval</>
-                ) : (
-                  <><Lock className="w-5 h-5" /> Unlock Contact</>
-                )}
-              </button>
+              <div className="mt-6">
+                <ContactUnlock
+                  targetUserId={userId!}
+                  targetName={mechanic.profile?.name || 'Mechanic'}
+                  resourceType="mechanic"
+                  contactInfo={{
+                    name: mechanic.profile?.name || '',
+                    phone: mechanic.profile?.contact_phone,
+                    email: mechanic.profile?.contact_email,
+                    address: mechanic.profile?.contact_address,
+                    telegram: mechanic.profile?.contact_telegram,
+                    whatsapp: mechanic.profile?.contact_whatsapp,
+                  }}
+                  onUnlocked={() => setShowViralShare(true)}
+                />
+              </div>
             </div>
           </div>
 
@@ -251,20 +194,7 @@ export default function MechanicDetail() {
         </motion.div>
       </div>
 
-      <PaymentModal
-        isOpen={showPayment}
-        onClose={() => setShowPayment(false)}
-        feeType="mechanic_contact"
-        providerId={userId}
-        providerName={mechanic.profile?.name}
-        onSuccess={handlePaymentSuccess}
-      />
-      <ContactCard
-        isOpen={showContact}
-        onClose={() => setShowContact(false)}
-        providerId={userId!}
-        providerName={mechanic.profile?.name}
-      />
+      <ViralShareModal open={showViralShare} onClose={() => setShowViralShare(false)} />
     </div>
   );
 }
