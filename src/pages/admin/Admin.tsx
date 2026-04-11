@@ -97,7 +97,7 @@ const FEE_LABELS: Record<string, string> = {
 };
 
 export default function Admin() {
-  const { profile: adminProfile } = useAuth();
+  const { profile: adminProfile, session } = useAuth();
   const [tab, setTab] = useState<AdminTab>('overview');
   const [users, setUsers] = useState<Profile[]>([]);
   const [breakdowns, setBreakdowns] = useState<BreakdownRequest[]>([]);
@@ -521,14 +521,37 @@ export default function Admin() {
     setSendingReminderId(u.id);
     const missing = getUserMissingFields(u);
     const missingText = missing.length > 0 ? ` Missing: ${missing.join(', ')}.` : '';
-    const { error } = await supabase.from('notifications').insert({
-      user_id: u.id,
-      title: 'Complete Your Profile',
-      message: `Your account profile is incomplete. Please log in and complete your profile to get full access to EquipLink.${missingText}`,
-      type: 'warning',
-    });
+
+    const [{ error: notifError }] = await Promise.all([
+      supabase.from('notifications').insert({
+        user_id: u.id,
+        title: 'Complete Your Profile',
+        message: `Your account profile is incomplete. Please log in and complete your profile to get full access to EquipLink.${missingText}`,
+        type: 'warning',
+      }),
+      session?.access_token
+        ? fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-profile-reminder`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+                Apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+              },
+              body: JSON.stringify({
+                userId: u.id,
+                name: u.name,
+                email: u.email,
+                missingFields: missing,
+              }),
+            }
+          )
+        : Promise.resolve(null),
+    ]);
+
     setSendingReminderId(null);
-    if (!error) {
+    if (!notifError) {
       toast.success(`Reminder sent to ${u.name}`);
     } else {
       toast.error('Failed to send reminder');
