@@ -45,8 +45,11 @@ export async function spendCredits(
   actionKey: string,
   resourceId: string,
   resourceType: 'mechanic' | 'part' | 'rental' | 'job',
-  description: string
+  description: string,
+  promoEnabled = false
 ): Promise<SpendCreditsResult> {
+  if (promoEnabled) return { success: true };
+
   const alreadyGranted = await hasAccessGrant(userId, resourceId, resourceType);
   if (alreadyGranted) return { success: true, alreadyGranted: true };
 
@@ -111,8 +114,11 @@ export async function spendCredits(
 export async function checkUserCanAct(
   userId: string,
   actionKey: string,
-  countQuery: () => Promise<number>
+  countQuery: () => Promise<number>,
+  promoEnabled = false
 ): Promise<{ canActFree: boolean; cost: number; balance: number }> {
+  if (promoEnabled) return { canActFree: true, cost: 0, balance: 0 };
+
   const [rule, count, walletRes] = await Promise.all([
     getCreditRule(actionKey),
     countQuery(),

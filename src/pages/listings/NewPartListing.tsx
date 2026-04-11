@@ -5,6 +5,7 @@ import { Package, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { checkUserCanAct, spendCredits } from '../../lib/credits';
+import { fetchPromoConfig } from '../../lib/promoMode';
 import PhotoUpload from '../../components/ui/PhotoUpload';
 import toast from 'react-hot-toast';
 
@@ -42,6 +43,9 @@ export default function NewPartListing() {
 
     setLoading(true);
 
+    const promoConfig = await fetchPromoConfig();
+    const promoEnabled = promoConfig.promoEnabled;
+
     const { canActFree, cost, balance } = await checkUserCanAct(
       profile.id,
       'list_part',
@@ -51,7 +55,8 @@ export default function NewPartListing() {
           .select('id', { count: 'exact', head: true })
           .eq('supplier_id', profile.id);
         return count ?? 0;
-      }
+      },
+      promoEnabled
     );
 
     if (!canActFree) {
@@ -66,7 +71,8 @@ export default function NewPartListing() {
         'list_part',
         `listing_part_${Date.now()}`,
         'part',
-        `Part listing credit — ${form.part_name}`
+        `Part listing credit — ${form.part_name}`,
+        promoEnabled
       );
       if (!result.success && !result.alreadyGranted) {
         toast.error('Failed to deduct credits. Please try again.');

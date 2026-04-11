@@ -5,6 +5,7 @@ import { Truck, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { checkUserCanAct, spendCredits } from '../../lib/credits';
+import { fetchPromoConfig } from '../../lib/promoMode';
 import PhotoUpload from '../../components/ui/PhotoUpload';
 import toast from 'react-hot-toast';
 
@@ -38,6 +39,9 @@ export default function NewRentalListing() {
 
     setLoading(true);
 
+    const promoConfig = await fetchPromoConfig();
+    const promoEnabled = promoConfig.promoEnabled;
+
     const { canActFree, cost, balance } = await checkUserCanAct(
       profile.id,
       'list_rental',
@@ -47,7 +51,8 @@ export default function NewRentalListing() {
           .select('id', { count: 'exact', head: true })
           .eq('provider_id', profile.id);
         return count ?? 0;
-      }
+      },
+      promoEnabled
     );
 
     if (!canActFree) {
@@ -62,7 +67,8 @@ export default function NewRentalListing() {
         'list_rental',
         `listing_rental_${Date.now()}`,
         'rental',
-        `Rental listing credit — ${form.machine_model}`
+        `Rental listing credit — ${form.machine_model}`,
+        promoEnabled
       );
       if (!result.success && !result.alreadyGranted) {
         toast.error('Failed to deduct credits. Please try again.');

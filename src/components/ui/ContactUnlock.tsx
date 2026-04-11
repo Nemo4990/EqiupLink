@@ -4,6 +4,7 @@ import { Lock, Unlock, Wallet, Phone, Mail, MapPin, MessageCircle, Send, Copy, E
 import { useAuth } from '../../contexts/AuthContext';
 import { spendCredits, hasAccessGrant, getCreditRule } from '../../lib/credits';
 import { trackEvent } from '../../lib/analytics';
+import { usePromoMode } from '../../lib/promoMode';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useEffect } from 'react';
@@ -34,6 +35,7 @@ const ACTION_MAP: Record<string, string> = {
 export default function ContactUnlock({ targetUserId, targetName, resourceType, contactInfo, onUnlocked }: ContactUnlockProps) {
   const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const { promoEnabled } = usePromoMode();
   const [unlocked, setUnlocked] = useState(false);
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -41,6 +43,7 @@ export default function ContactUnlock({ targetUserId, targetName, resourceType, 
 
   useEffect(() => {
     if (!user) { setChecking(false); return; }
+    if (promoEnabled) { setUnlocked(true); setChecking(false); return; }
     Promise.all([
       hasAccessGrant(user.id, targetUserId, resourceType),
       getCreditRule(ACTION_MAP[resourceType]),
@@ -49,7 +52,7 @@ export default function ContactUnlock({ targetUserId, targetName, resourceType, 
       setCost(rule?.credits_cost ?? 1);
       setChecking(false);
     });
-  }, [user, targetUserId, resourceType]);
+  }, [user, targetUserId, resourceType, promoEnabled]);
 
   const handleUnlock = async () => {
     if (!user) { navigate('/login'); return; }
@@ -59,7 +62,8 @@ export default function ContactUnlock({ targetUserId, targetName, resourceType, 
       ACTION_MAP[resourceType],
       targetUserId,
       resourceType,
-      `Unlocked ${resourceType} contact: ${targetName}`
+      `Unlocked ${resourceType} contact: ${targetName}`,
+      promoEnabled
     );
     setLoading(false);
 
@@ -134,14 +138,17 @@ export default function ContactUnlock({ targetUserId, targetName, resourceType, 
             ) : (
               <>
                 <Unlock className="w-4 h-4" />
-                Unlock Contact ({cost} credit{cost !== 1 ? 's' : ''})
+                {promoEnabled ? 'Unlock Contact — Free' : `Unlock Contact (${cost} credit${cost !== 1 ? 's' : ''})`}
               </>
             )}
           </button>
 
           <p className="text-gray-500 text-xs mt-2">
-            <Wallet className="w-3 h-3 inline mr-1" />
-            One-time charge. View unlimited after unlocking.
+            {promoEnabled ? (
+              'Free during promotional period.'
+            ) : (
+              <><Wallet className="w-3 h-3 inline mr-1" />One-time charge. View unlimited after unlocking.</>
+            )}
           </p>
         </div>
       </motion.div>

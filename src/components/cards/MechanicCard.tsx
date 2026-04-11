@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { spendCredits } from '../../lib/credits';
+import { usePromoMode } from '../../lib/promoMode';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -22,13 +23,14 @@ const SPECIALIZATION_COLORS: Record<string, string> = {
 export default function MechanicCard({ mechanic }: Props) {
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
+  const { promoEnabled } = usePromoMode();
   const [hasAccess, setHasAccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [creditCost, setCreditCost] = useState(1);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const isPro = profile?.subscription_tier === 'pro';
+  const isPro = profile?.subscription_tier === 'pro' || promoEnabled;
 
   useEffect(() => {
     if (user) {
@@ -95,7 +97,8 @@ export default function MechanicCard({ mechanic }: Props) {
       'view_mechanic_contact',
       mechanic.user_id,
       'mechanic',
-      `View mechanic contact — ${mechanic.profile?.name}`
+      `View mechanic contact — ${mechanic.profile?.name}`,
+      promoEnabled
     );
 
     if (result.alreadyGranted) {
