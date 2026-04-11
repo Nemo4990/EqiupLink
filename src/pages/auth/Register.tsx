@@ -81,9 +81,8 @@ export default function Register() {
     if (file.size > 10 * 1024 * 1024) { toast.error('Image must be under 10MB.'); return; }
     setUploadingLicense(true);
     try {
-      const ext = file.name.split('.').pop();
-      const tempId = `temp_${Date.now()}`;
-      const path = `${tempId}/trade_license/${Date.now()}.${ext}`;
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `trade-license-temp/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
       const { error } = await supabase.storage.from('listing-photos').upload(path, file, { upsert: false });
       if (error) throw error;
       const { data } = supabase.storage.from('listing-photos').getPublicUrl(path);
