@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, MessageSquare, Bell, User, Grid3x3 as Grid3X3, Briefcase, Bot } from 'lucide-react';
+import { Home, MessageSquare, Bell, User, Grid3x3 as Grid3X3, Briefcase, Bot, Shield } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface NavTab {
@@ -20,17 +20,26 @@ export default function BottomNav({ unreadCount }: BottomNavProps) {
 
   const isMechanic = profile?.role === 'mechanic' || profile?.role === 'technician';
   const isOwner = profile?.role === 'owner' || profile?.role === 'customer';
+  const isAdmin = profile?.role === 'admin';
 
-  const tabs: NavTab[] = [
-    { to: '/dashboard', icon: Home, label: 'Home', matchPaths: ['/dashboard'] },
-    { to: '/search', icon: Grid3X3, label: 'Browse', matchPaths: ['/marketplace', '/search'] },
-    ...(isMechanic ? [{ to: '/jobs', icon: Briefcase, label: 'Jobs', matchPaths: ['/jobs'] }] : []),
-    ...(isOwner ? [{ to: '/my-requests', icon: Briefcase, label: 'Requests', matchPaths: ['/my-requests', '/requests'] }] : []),
-    { to: '/messages', icon: MessageSquare, label: 'Messages', matchPaths: ['/messages'] },
-    { to: '/notifications', icon: Bell, label: 'Alerts', matchPaths: ['/notifications'], badge: unreadCount },
-    { to: '/ai-diagnose', icon: Bot, label: 'AI', matchPaths: ['/ai-diagnose'] },
-    { to: '/profile', icon: User, label: 'Profile', matchPaths: ['/profile', '/wallet', '/subscription', '/sessions'] },
-  ];
+  const tabs: NavTab[] = isAdmin
+    ? [
+        { to: '/admin', icon: Shield, label: 'Admin', matchPaths: ['/admin'] },
+        { to: '/dashboard', icon: Home, label: 'Home', matchPaths: ['/dashboard'] },
+        { to: '/users', icon: User, label: 'Users', matchPaths: ['/marketplace/mechanics'] },
+        { to: '/notifications', icon: Bell, label: 'Alerts', matchPaths: ['/notifications'], badge: unreadCount },
+        { to: '/profile', icon: User, label: 'Profile', matchPaths: ['/profile'] },
+      ]
+    : [
+        { to: '/dashboard', icon: Home, label: 'Home', matchPaths: ['/dashboard'] },
+        { to: '/search', icon: Grid3X3, label: 'Browse', matchPaths: ['/marketplace', '/search'] },
+        ...(isMechanic ? [{ to: '/jobs', icon: Briefcase, label: 'Jobs', matchPaths: ['/jobs'] }] : []),
+        ...(isOwner ? [{ to: '/my-requests', icon: Briefcase, label: 'Requests', matchPaths: ['/my-requests', '/requests'] }] : []),
+        { to: '/messages', icon: MessageSquare, label: 'Messages', matchPaths: ['/messages'] },
+        { to: '/notifications', icon: Bell, label: 'Alerts', matchPaths: ['/notifications'], badge: unreadCount },
+        { to: '/ai-diagnose', icon: Bot, label: 'AI', matchPaths: ['/ai-diagnose'] },
+        { to: '/profile', icon: User, label: 'Profile', matchPaths: ['/profile', '/wallet', '/subscription', '/sessions'] },
+      ];
 
   const isActive = (tab: NavTab) => {
     const paths = tab.matchPaths ?? [tab.to];

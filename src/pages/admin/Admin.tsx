@@ -5,8 +5,10 @@ import {
   Activity, BarChart3, CreditCard, DollarSign, Clock, Plus, Trash2,
   Pencil, X, Save, Mail, Phone, MapPin, Globe, TrendingUp, Crown,
   Wallet, PercentSquare, Settings, FileText, Search, BadgeCheck,
-  ShieldAlert, Star, Wrench, ChevronRight, Eye, EyeOff, RefreshCw
+  ShieldAlert, Star, Wrench, ChevronRight, Eye, EyeOff, RefreshCw,
+  Zap, Calendar, ToggleLeft, ToggleRight, Gift
 } from 'lucide-react';
+import { invalidatePromoCache } from '../../lib/promoMode';
 import { supabase } from '../../lib/supabase';
 import { Profile, BreakdownRequest, UserPayment, PaymentMethod, Commission, Subscription, SubscriptionPlan, PlatformSetting, SupplierDocument } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
@@ -17,6 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 type AdminTab =
   | 'overview'
+  | 'promo'
   | 'verification'
   | 'trade_licenses'
   | 'users'
@@ -143,6 +146,15 @@ export default function Admin() {
   const [legalForm, setLegalForm] = useState({ privacy_email: '', legal_email: '' });
   const [savingLegal, setSavingLegal] = useState(false);
 
+  const [promoConfig, setPromoConfig] = useState({
+    monetizationMode: 'promo' as 'promo' | 'paid',
+    promoEnabled: true,
+    promoStartDate: '',
+    promoEndDate: '',
+    promoMessage: '',
+  });
+  const [savingPromo, setSavingPromo] = useState(false);
+
   const [userSearch, setUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('all');
   const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
@@ -171,6 +183,7 @@ export default function Admin() {
       { data: legalSettingsData },
       { data: mechanicProfilesData },
       { data: supplierDocsData },
+      { data: promoConfigData },
     ] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('breakdown_requests')
@@ -200,6 +213,9 @@ export default function Admin() {
       supabase.from('supplier_documents')
         .select('*, user:profiles!supplier_documents_user_id_fkey(name, email, phone, location)')
         .order('created_at', { ascending: false }),
+      supabase.from('platform_config')
+        .select('config_key, config_value')
+        .in('config_key', ['monetization_mode', 'promo_mode_enabled', 'promo_start_date', 'promo_end_date', 'promo_message']),
     ]);
 
     const allUsers = (usersData || []) as Profile[];
@@ -236,6 +252,18 @@ export default function Admin() {
     }
 
     setSiteStatsList((siteStatsData || []) as SiteStat[]);
+
+    const configMap: Record<string, string> = {};
+    ((promoConfigData || []) as { config_key: string; config_value: string }[]).forEach(r => {
+      configMap[r.config_key] = r.config_value;
+    });
+    setPromoConfig({
+      monetizationMode: (configMap['monetization_mode'] || 'promo') as 'promo' | 'paid',
+      promoEnabled: configMap['promo_mode_enabled'] === 'true',
+      promoStartDate: configMap['promo_start_date'] || '',
+      promoEndDate: configMap['promo_end_date'] || '',
+      promoMessage: configMap['promo_message'] || '',
+    });
 
     setStats({
       users: allUsers.length,
@@ -568,8 +596,35 @@ export default function Admin() {
     }
   };
 
+  const savePromoConfig = async () => {
+    setSavingPromo(true);
+    const updates = [
+      { config_key: 'monetization_mode', config_value: promoConfig.monetizationMode },
+      { config_key: 'promo_mode_enabled', config_value: String(promoConfig.monetizationMode === 'promo') },
+      { config_key: 'promo_start_date', config_value: promoConfig.promoStartDate },
+      { config_key: 'promo_end_date', config_value: promoConfig.promoEndDate },
+      { config_key: 'promo_message', config_value: promoConfig.promoMessage },
+    ];
+    let hasError = false;
+    for (const u of updates) {
+      const { error } = await supabase
+        .from('platform_config')
+        .update({ config_value: u.config_value, updated_by: adminProfile?.id, updated_at: new Date().toISOString() })
+        .eq('config_key', u.config_key);
+      if (error) { hasError = true; break; }
+    }
+    invalidatePromoCache();
+    setSavingPromo(false);
+    if (hasError) {
+      toast.error('Failed to save promo settings.');
+    } else {
+      toast.success(promoConfig.monetizationMode === 'promo' ? 'Promo mode is now ACTIVE — all features are free.' : 'Paid mode is now ACTIVE — normal billing enforced.');
+    }
+  };
+
   const TABS: { id: AdminTab; label: string; icon: React.FC<{ className?: string }>; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'promo', label: 'Promo Period', icon: Gift },
     { id: 'verification', label: 'Verify Mechanics', icon: BadgeCheck, badge: stats.pendingVerification },
     { id: 'trade_licenses', label: 'Trade Licenses', icon: FileText, badge: supplierDocs.filter(d => d.status === 'pending').length },
     { id: 'users', label: 'Users', icon: Users },
@@ -1524,6 +1579,147 @@ export default function Admin() {
                       <Save className="w-4 h-4" /> {savingContact ? 'Saving...' : 'Save Contact Info'}
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* ===== PROMO PERIOD ===== */}
+              {tab === 'promo' && (
+                <div className="max-w-2xl space-y-6">
+                  <div>
+                    <h3 className="text-white font-semibold mb-1">Promotional Period & Monetization</h3>
+                    <p className="text-gray-400 text-sm">Control whether the platform is in free promo mode or paid mode. This affects wallet unlock fees, subscriptions, and all paid features.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    <button
+                      onClick={() => setPromoConfig(p => ({ ...p, monetizationMode: 'promo' }))}
+                      className={`text-left p-5 rounded-2xl border-2 transition-all ${
+                        promoConfig.monetizationMode === 'promo'
+                          ? 'border-green-500 bg-green-900/20'
+                          : 'border-gray-700 bg-gray-900 hover:border-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${promoConfig.monetizationMode === 'promo' ? 'bg-green-500/20' : 'bg-gray-800'}`}>
+                          <Gift className={`w-5 h-5 ${promoConfig.monetizationMode === 'promo' ? 'text-green-400' : 'text-gray-500'}`} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-bold ${promoConfig.monetizationMode === 'promo' ? 'text-green-400' : 'text-white'}`}>Promotional Mode (FREE)</span>
+                            {promoConfig.monetizationMode === 'promo' && (
+                              <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full font-semibold">ACTIVE</span>
+                            )}
+                          </div>
+                          <p className="text-gray-400 text-sm mt-0.5">All users get unlimited free access to every feature. No wallet charges, no subscription required.</p>
+                        </div>
+                        {promoConfig.monetizationMode === 'promo'
+                          ? <ToggleRight className="w-8 h-8 text-green-400 flex-shrink-0" />
+                          : <ToggleLeft className="w-8 h-8 text-gray-600 flex-shrink-0" />
+                        }
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => setPromoConfig(p => ({ ...p, monetizationMode: 'paid' }))}
+                      className={`text-left p-5 rounded-2xl border-2 transition-all ${
+                        promoConfig.monetizationMode === 'paid'
+                          ? 'border-yellow-500 bg-yellow-900/20'
+                          : 'border-gray-700 bg-gray-900 hover:border-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${promoConfig.monetizationMode === 'paid' ? 'bg-yellow-500/20' : 'bg-gray-800'}`}>
+                          <Zap className={`w-5 h-5 ${promoConfig.monetizationMode === 'paid' ? 'text-yellow-400' : 'text-gray-500'}`} />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-bold ${promoConfig.monetizationMode === 'paid' ? 'text-yellow-400' : 'text-white'}`}>Paid Mode (Monetized)</span>
+                            {promoConfig.monetizationMode === 'paid' && (
+                              <span className="text-xs bg-yellow-500 text-gray-900 px-2 py-0.5 rounded-full font-semibold">ACTIVE</span>
+                            )}
+                          </div>
+                          <p className="text-gray-400 text-sm mt-0.5">Normal billing enforced. Mechanics pay per lead, Pro subscriptions required for unlimited access.</p>
+                        </div>
+                        {promoConfig.monetizationMode === 'paid'
+                          ? <ToggleRight className="w-8 h-8 text-yellow-400 flex-shrink-0" />
+                          : <ToggleLeft className="w-8 h-8 text-gray-600 flex-shrink-0" />
+                        }
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Calendar className="w-4 h-4 text-gray-400" />
+                      <h4 className="text-white font-semibold text-sm">Promo Period Dates</h4>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-gray-400 text-xs font-medium mb-1.5">Start Date</label>
+                        <input
+                          type="date"
+                          value={promoConfig.promoStartDate}
+                          onChange={e => setPromoConfig(p => ({ ...p, promoStartDate: e.target.value }))}
+                          className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white rounded-xl py-2.5 px-3 text-sm outline-none transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-gray-400 text-xs font-medium mb-1.5">End Date</label>
+                        <input
+                          type="date"
+                          value={promoConfig.promoEndDate}
+                          onChange={e => setPromoConfig(p => ({ ...p, promoEndDate: e.target.value }))}
+                          className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white rounded-xl py-2.5 px-3 text-sm outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+                    {promoConfig.promoStartDate && promoConfig.promoEndDate && (
+                      <div className="flex items-center gap-2 bg-gray-800/60 rounded-xl px-3 py-2">
+                        <Clock className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                        <p className="text-gray-400 text-xs">
+                          Promo runs from <span className="text-white font-medium">{promoConfig.promoStartDate}</span> to <span className="text-white font-medium">{promoConfig.promoEndDate}</span>.
+                          After the end date, switch to Paid Mode manually.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-3">
+                    <label className="block text-gray-300 text-sm font-medium">Promo Banner Message</label>
+                    <p className="text-gray-500 text-xs">Shown to all users in a banner while promo mode is active.</p>
+                    <textarea
+                      value={promoConfig.promoMessage}
+                      onChange={e => setPromoConfig(p => ({ ...p, promoMessage: e.target.value }))}
+                      rows={3}
+                      placeholder="e.g. EquipLink is FREE during our launch period! Enjoy unlimited access."
+                      className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-xl py-2.5 px-3 text-sm outline-none resize-none transition-colors"
+                    />
+                  </div>
+
+                  <div className={`rounded-2xl p-4 border ${promoConfig.monetizationMode === 'promo' ? 'bg-green-900/20 border-green-800/40' : 'bg-orange-900/20 border-orange-800/40'}`}>
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${promoConfig.monetizationMode === 'promo' ? 'text-green-400' : 'text-orange-400'}`} />
+                      <div>
+                        <p className={`font-semibold text-sm ${promoConfig.monetizationMode === 'promo' ? 'text-green-400' : 'text-orange-400'}`}>
+                          {promoConfig.monetizationMode === 'promo' ? 'Saving will activate FREE access for all users.' : 'Saving will activate billing for all users.'}
+                        </p>
+                        <p className="text-gray-400 text-xs mt-1">
+                          {promoConfig.monetizationMode === 'promo'
+                            ? 'Mechanics can unlock jobs for free. All subscription gates will be bypassed.'
+                            : 'Wallet deductions and subscription checks will be enforced. Make sure payment methods are configured.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={savePromoConfig}
+                    disabled={savingPromo}
+                    className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 text-gray-900 font-bold px-6 py-3 rounded-xl text-sm transition-colors"
+                  >
+                    <Save className="w-4 h-4" />
+                    {savingPromo ? 'Saving...' : `Save — Activate ${promoConfig.monetizationMode === 'promo' ? 'Free Promo' : 'Paid'} Mode`}
+                  </button>
                 </div>
               )}
 

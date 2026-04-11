@@ -9,6 +9,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { ServiceRequest, ActiveJob, PlatformSetting } from '../../types';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePromoMode } from '../../lib/promoMode';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -36,6 +37,7 @@ type TabType = 'feed' | 'my_jobs';
 export default function Jobs() {
   const { profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const promoMode = usePromoMode();
 
   const [tab, setTab] = useState<TabType>('feed');
   const [requests, setRequests] = useState<ServiceRequest[]>([]);
@@ -52,7 +54,7 @@ export default function Jobs() {
   const [leadPrice, setLeadPrice] = useState(15);
 
   const [walletBalance, setWalletBalance] = useState(0);
-  const isPro = profile?.subscription_tier === 'pro';
+  const isPro = profile?.subscription_tier === 'pro' || promoMode.promoEnabled;
 
   useEffect(() => {
     if (profile) {
@@ -305,7 +307,7 @@ export default function Jobs() {
               <Wallet className="w-4 h-4" />
               {walletBalance.toLocaleString()} ETB
             </Link>
-            {!isPro && (
+            {!isPro && !promoMode.promoEnabled && (
               <Link
                 to="/subscription"
                 className="flex items-center gap-1.5 text-sm bg-amber-400/20 text-amber-400 border border-amber-400/30 hover:bg-amber-400/30 px-3 py-1.5 rounded-lg transition-colors"
@@ -316,8 +318,16 @@ export default function Jobs() {
           </div>
         </div>
 
-        <div className={`rounded-xl border p-4 mb-6 ${isPro ? 'bg-amber-950/30 border-amber-800/40' : 'bg-gray-900 border-gray-800'}`}>
-          {isPro ? (
+        <div className={`rounded-xl border p-4 mb-6 ${promoMode.promoEnabled ? 'bg-green-950/30 border-green-800/40' : isPro ? 'bg-amber-950/30 border-amber-800/40' : 'bg-gray-900 border-gray-800'}`}>
+          {promoMode.promoEnabled ? (
+            <div className="flex items-center gap-3">
+              <Zap className="w-5 h-5 text-green-400 flex-shrink-0" />
+              <div>
+                <p className="text-green-400 font-semibold text-sm">Free Promotional Period — All Features Unlocked!</p>
+                <p className="text-gray-400 text-xs">{promoMode.promoMessage || 'Enjoy unlimited free access during our launch period.'}</p>
+              </div>
+            </div>
+          ) : isPro ? (
             <div className="flex items-center gap-3">
               <Crown className="w-5 h-5 text-amber-400 flex-shrink-0" />
               <div>

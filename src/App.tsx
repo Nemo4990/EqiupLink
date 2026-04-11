@@ -4,7 +4,8 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import ProtectedRoute from './components/ui/ProtectedRoute';
-import { AlertTriangle, Clock } from 'lucide-react';
+import { AlertTriangle, Clock, Zap } from 'lucide-react';
+import { usePromoMode } from './lib/promoMode';
 
 import Landing from './pages/Landing';
 import Login from './pages/auth/Login';
@@ -94,10 +95,30 @@ function IdleWarningModal() {
   );
 }
 
+function PromoBanner() {
+  const promo = usePromoMode();
+  if (!promo.promoEnabled || promo.loading) return null;
+  return (
+    <div className="fixed top-0 left-0 right-0 z-[60] bg-gradient-to-r from-green-600 to-emerald-600 py-1.5 px-4 text-center">
+      <p className="text-white text-xs font-semibold flex items-center justify-center gap-1.5 flex-wrap">
+        <Zap className="w-3.5 h-3.5 flex-shrink-0" />
+        <span>{promo.promoMessage || 'Free promotional period — all features unlocked for everyone!'}</span>
+        {promo.promoEndDate && (
+          <span className="opacity-75">· Ends {promo.promoEndDate}</span>
+        )}
+      </p>
+    </div>
+  );
+}
+
 function AppContent() {
   const { user } = useAuth();
+  const promo = usePromoMode();
+  const hasBanner = promo.promoEnabled && !promo.loading;
   return (
     <div className="min-h-screen bg-gray-950 text-white">
+      <PromoBanner />
+      <div className={hasBanner ? 'pt-7' : ''}>
       <Navbar />
       <IdleWarningModal />
       <div className={user ? 'md:block pb-16 md:pb-0' : ''}>
@@ -148,6 +169,7 @@ function AppContent() {
       </Routes>
       </div>
       <Footer />
+      </div>
     </div>
   );
 }
