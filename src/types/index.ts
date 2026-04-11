@@ -26,8 +26,29 @@ export interface Profile {
   referred_by: string | null;
   onboarding_completed: boolean;
   signup_credits_granted: boolean;
+  trade_license_status: string | null;
+  pro_badge: boolean;
+  pro_expires_at: string | null;
+  merchant_badge: string | null;
+  is_verified: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface SupplierDocument {
+  id: string;
+  user_id: string;
+  document_type: string;
+  file_url: string;
+  registered_name: string;
+  license_number: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+  user?: Profile;
 }
 
 export interface MechanicProfile {

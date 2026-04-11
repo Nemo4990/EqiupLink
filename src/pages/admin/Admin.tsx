@@ -8,7 +8,7 @@ import {
   ShieldAlert, Star, Wrench, ChevronRight, Eye, EyeOff, RefreshCw
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { Profile, BreakdownRequest, UserPayment, PaymentMethod, Commission, Subscription, SubscriptionPlan, PlatformSetting } from '../../types';
+import { Profile, BreakdownRequest, UserPayment, PaymentMethod, Commission, Subscription, SubscriptionPlan, PlatformSetting, SupplierDocument } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import AdminListings from './AdminListings';
 import { format, formatDistanceToNow } from 'date-fns';
@@ -18,6 +18,7 @@ import { useAuth } from '../../contexts/AuthContext';
 type AdminTab =
   | 'overview'
   | 'verification'
+  | 'trade_licenses'
   | 'users'
   | 'payments'
   | 'payment_methods'
@@ -96,7 +97,7 @@ const FEE_LABELS: Record<string, string> = {
 };
 
 export default function Admin() {
-  const { profile: adminProfile } = useAuth();
+  const { profile: adminProfile, session } = useAuth();
   const [tab, setTab] = useState<AdminTab>('overview');
   const [users, setUsers] = useState<Profile[]>([]);
   const [breakdowns, setBreakdowns] = useState<BreakdownRequest[]>([]);
@@ -144,6 +145,11 @@ export default function Admin() {
 
   const [userSearch, setUserSearch] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('all');
+  const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
+  const [supplierDocs, setSupplierDocs] = useState<SupplierDocument[]>([]);
+  const [docFilter, setDocFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectingDocId, setRejectingDocId] = useState<string | null>(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -164,6 +170,7 @@ export default function Admin() {
       { data: platformSettingsData },
       { data: legalSettingsData },
       { data: mechanicProfilesData },
+      { data: supplierDocsData },
     ] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('breakdown_requests')
@@ -190,6 +197,9 @@ export default function Admin() {
       supabase.from('mechanic_profiles')
         .select('*, profile:profiles!mechanic_profiles_user_id_fkey(id,name,email,phone,location,bio,avatar_url,is_approved,is_suspended,contact_phone,contact_email,contact_address,contact_complete)')
         .order('created_at', { ascending: false }),
+      supabase.from('supplier_documents')
+        .select('*, user:profiles!supplier_documents_user_id_fkey(name, email, phone, location)')
+        .order('created_at', { ascending: false }),
     ]);
 
     const allUsers = (usersData || []) as Profile[];
@@ -205,6 +215,7 @@ export default function Admin() {
     setSubscriptions((subscriptionsData || []) as Subscription[]);
     setSubPlans((subPlansData || []) as SubscriptionPlan[]);
     setMechanicProfiles(mechProfiles);
+    setSupplierDocs((supplierDocsData || []) as SupplierDocument[]);
 
     const ps = (platformSettingsData || []) as PlatformSetting[];
     setPlatformSettings(ps);
@@ -452,16 +463,99 @@ export default function Admin() {
     return matchSearch && matchFilter;
   });
 
+  const approveTradeLicense = async (doc: SupplierDocument) => {
+    const { error } = await supabase.from('supplier_documents').update({
+      status: 'approved', reviewed_by: adminProfile?.id, reviewed_at: new Date().toISOString(),
+    }).eq('id', doc.id);
+    if (!error) {
+      await supabase.from('profiles').update({ trade_license_status: 'approved' }).eq('id', doc.user_id);
+      await supabase.from('notifications').insert({
+        user_id: doc.user_id,
+        title: 'Trade License Approved',
+        message: 'Your trade license has been verified. You can now list spare parts on EquipLink.',
+        type: 'success',
+      });
+      setSupplierDocs(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'approved' as const } : d));
+      toast.success('Trade license approved');
+    } else { toast.error('Failed to approve'); }
+  };
+
+  const rejectTradeLicense = async (doc: SupplierDocument, reason: string) => {
+    const { error } = await supabase.from('supplier_documents').update({
+      status: 'rejected', reviewed_by: adminProfile?.id, reviewed_at: new Date().toISOString(), rejection_reason: reason,
+    }).eq('id', doc.id);
+    if (!error) {
+      await supabase.from('profiles').update({ trade_license_status: 'rejected' }).eq('id', doc.user_id);
+      await supabase.from('notifications').insert({
+        user_id: doc.user_id,
+        title: 'Trade License Rejected',
+        message: `Your trade license was not approved. ${reason ? `Reason: ${reason}` : 'Please re-submit a valid document.'}`,
+        type: 'warning',
+      });
+      setSupplierDocs(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'rejected' as const, rejection_reason: reason } : d));
+      setRejectingDocId(null);
+      setRejectionReason('');
+      toast.success('Trade license rejected');
+    } else { toast.error('Failed to reject'); }
+  };
+
+  const getUserMissingFields = (u: Profile): string[] => {
+    const missing: string[] = [];
+    if (!u.phone) missing.push('Phone');
+    if (!u.location) missing.push('Location');
+    if (!u.bio) missing.push('Bio');
+    if (!u.contact_phone && !u.contact_email) missing.push('Business contact');
+    if (!u.is_verified) missing.push('Email not verified');
+    return missing;
+  };
+
   const filteredUsers = users.filter(u => {
     const s = userSearch.toLowerCase();
     const matchSearch = !s || u.name?.toLowerCase().includes(s) || u.email?.toLowerCase().includes(s);
-    const matchRole = userRoleFilter === 'all' || u.role === userRoleFilter;
-    return matchSearch && matchRole;
+    const matchRole = userRoleFilter === 'all' || userRoleFilter === 'incomplete' || u.role === userRoleFilter;
+    const matchIncomplete = userRoleFilter !== 'incomplete' || (getUserMissingFields(u).length > 0 && u.role !== 'admin');
+    return matchSearch && matchRole && matchIncomplete;
   });
+
+  const sendReminder = async (u: Profile) => {
+    if (!session?.access_token) { toast.error('Session expired. Please log in again.'); return; }
+    setSendingReminderId(u.id);
+    const missing = getUserMissingFields(u);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-profile-reminder`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+            Apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({
+            userId: u.id,
+            name: u.name,
+            email: u.email,
+            missingFields: missing,
+          }),
+        }
+      );
+      if (res.ok) {
+        toast.success(`Reminder sent to ${u.name}`);
+      } else {
+        const errBody = await res.json().catch(() => ({}));
+        toast.error(errBody?.error || 'Failed to send reminder');
+      }
+    } catch {
+      toast.error('Failed to send reminder');
+    } finally {
+      setSendingReminderId(null);
+    }
+  };
 
   const TABS: { id: AdminTab; label: string; icon: React.FC<{ className?: string }>; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'verification', label: 'Verify Mechanics', icon: BadgeCheck, badge: stats.pendingVerification },
+    { id: 'trade_licenses', label: 'Trade Licenses', icon: FileText, badge: supplierDocs.filter(d => d.status === 'pending').length },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'payments', label: 'Payments', icon: CreditCard, badge: stats.pendingPayments },
     { id: 'payment_methods', label: 'Payment Methods', icon: DollarSign },
@@ -830,6 +924,153 @@ export default function Admin() {
                 </div>
               )}
 
+              {/* ===== TRADE LICENSES ===== */}
+              {tab === 'trade_licenses' && (
+                <div className="space-y-5">
+                  <div className="bg-blue-950/20 border border-blue-800/30 rounded-2xl p-5">
+                    <div className="flex items-start gap-3">
+                      <FileText className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h2 className="text-white font-bold text-lg">Supplier Trade License Review</h2>
+                        <p className="text-gray-400 text-sm mt-0.5">
+                          Review trade license documents submitted by suppliers. The registered business name must match their account name. Approved suppliers can list parts on the marketplace.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-1.5">
+                    {(['pending', 'approved', 'rejected', 'all'] as const).map(f => (
+                      <button
+                        key={f}
+                        onClick={() => setDocFilter(f)}
+                        className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-colors capitalize ${docFilter === f ? 'bg-blue-400 text-gray-900' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                      >
+                        {f === 'pending' ? `Pending (${supplierDocs.filter(d => d.status === 'pending').length})` : f === 'approved' ? `Approved (${supplierDocs.filter(d => d.status === 'approved').length})` : f === 'rejected' ? `Rejected (${supplierDocs.filter(d => d.status === 'rejected').length})` : 'All'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {supplierDocs.filter(d => docFilter === 'all' || d.status === docFilter).length === 0 ? (
+                    <div className="text-center py-20 bg-gray-900 border border-gray-800 rounded-2xl">
+                      <FileText className="w-14 h-14 text-gray-700 mx-auto mb-4" />
+                      <p className="text-gray-400 font-medium">No documents match this filter</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {supplierDocs.filter(d => docFilter === 'all' || d.status === docFilter).map(doc => {
+                        const supplierUser = doc.user as Profile | undefined;
+                        const nameMatches = supplierUser?.name?.trim().toLowerCase() === doc.registered_name.trim().toLowerCase();
+                        return (
+                          <div key={doc.id} className={`bg-gray-900 border rounded-2xl overflow-hidden ${doc.status === 'pending' ? 'border-blue-800/40' : doc.status === 'approved' ? 'border-green-800/40' : 'border-red-800/40'}`}>
+                            <div className="p-5">
+                              <div className="flex items-start gap-4 flex-wrap">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                                    <p className="text-white font-bold">{supplierUser?.name || 'Unknown'}</p>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${doc.status === 'pending' ? 'bg-blue-900/40 text-blue-400' : doc.status === 'approved' ? 'bg-green-900/40 text-green-400' : 'bg-red-900/40 text-red-400'}`}>{doc.status}</span>
+                                  </div>
+                                  <p className="text-gray-500 text-xs">{supplierUser?.email}</p>
+
+                                  <div className="grid grid-cols-2 gap-3 mt-3 text-sm">
+                                    <div>
+                                      <p className="text-gray-500 text-xs">Registered Name (on license)</p>
+                                      <p className={`font-medium ${nameMatches ? 'text-green-400' : 'text-red-400'}`}>
+                                        {doc.registered_name}
+                                        {nameMatches ? <span className="text-green-500 text-xs ml-1">(matches)</span> : <span className="text-red-500 text-xs ml-1">(MISMATCH)</span>}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-gray-500 text-xs">Account Name</p>
+                                      <p className="text-gray-300 font-medium">{supplierUser?.name}</p>
+                                    </div>
+                                    {doc.license_number && (
+                                      <div>
+                                        <p className="text-gray-500 text-xs">License Number</p>
+                                        <p className="text-gray-300 font-mono text-xs">{doc.license_number}</p>
+                                      </div>
+                                    )}
+                                    <div>
+                                      <p className="text-gray-500 text-xs">Submitted</p>
+                                      <p className="text-gray-300 text-xs">{format(new Date(doc.created_at), 'MMM d, yyyy h:mm a')}</p>
+                                    </div>
+                                  </div>
+
+                                  {doc.rejection_reason && (
+                                    <div className="mt-3 p-2.5 bg-red-950/30 border border-red-800/30 rounded-xl">
+                                      <p className="text-red-400 text-xs font-medium">Rejection reason:</p>
+                                      <p className="text-red-300 text-xs mt-0.5">{doc.rejection_reason}</p>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex-shrink-0">
+                                  <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="block">
+                                    <img
+                                      src={doc.file_url}
+                                      alt="Trade License"
+                                      className="w-40 h-28 object-cover rounded-xl border border-gray-700 hover:border-yellow-400 transition-colors cursor-pointer"
+                                    />
+                                    <p className="text-center text-gray-500 text-xs mt-1 hover:text-yellow-400 transition-colors">Click to view full</p>
+                                  </a>
+                                </div>
+                              </div>
+
+                              {doc.status === 'pending' && (
+                                <div className="mt-4 pt-4 border-t border-gray-800">
+                                  {rejectingDocId === doc.id ? (
+                                    <div className="space-y-3">
+                                      <p className="text-gray-400 text-sm">Reason for rejection:</p>
+                                      <textarea
+                                        value={rejectionReason}
+                                        onChange={e => setRejectionReason(e.target.value)}
+                                        placeholder="e.g. Document is blurry, name doesn't match, expired license..."
+                                        rows={2}
+                                        className="w-full bg-gray-800 border border-gray-700 focus:border-red-400 text-white placeholder-gray-500 rounded-xl py-2 px-3 text-sm outline-none resize-none transition-colors"
+                                      />
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => rejectTradeLicense(doc, rejectionReason)}
+                                          className="flex items-center gap-1.5 text-sm bg-red-600 hover:bg-red-500 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+                                        >
+                                          <XCircle className="w-4 h-4" /> Confirm Reject
+                                        </button>
+                                        <button
+                                          onClick={() => { setRejectingDocId(null); setRejectionReason(''); }}
+                                          className="text-sm text-gray-400 hover:text-white border border-gray-700 px-3 py-2 rounded-xl transition-colors"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => approveTradeLicense(doc)}
+                                        disabled={!nameMatches}
+                                        className={`flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-colors ${nameMatches ? 'bg-green-500 hover:bg-green-400 text-gray-900' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}
+                                      >
+                                        <CheckCircle className="w-4 h-4" /> {nameMatches ? 'Approve License' : 'Name mismatch - cannot approve'}
+                                      </button>
+                                      <button
+                                        onClick={() => setRejectingDocId(doc.id)}
+                                        className="flex items-center gap-1.5 text-sm bg-red-900/20 text-red-400 border border-red-800/50 px-4 py-2 rounded-xl hover:bg-red-900/40 transition-colors"
+                                      >
+                                        <XCircle className="w-4 h-4" /> Reject
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ===== USERS ===== */}
               {tab === 'users' && (
                 <div className="space-y-4">
@@ -845,6 +1086,12 @@ export default function Admin() {
                       <option value="supplier">Supplier</option>
                       <option value="rental_provider">Rental Provider</option>
                     </select>
+                    <button
+                      onClick={() => setUserRoleFilter(userRoleFilter === 'incomplete' ? 'all' : 'incomplete')}
+                      className={`text-xs px-3.5 py-2.5 rounded-xl border transition-colors font-medium whitespace-nowrap ${userRoleFilter === 'incomplete' ? 'bg-orange-400 text-gray-900 border-orange-400' : 'border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'}`}
+                    >
+                      Incomplete Profiles
+                    </button>
                   </div>
 
                   <div className="space-y-2">
@@ -863,9 +1110,20 @@ export default function Admin() {
                             {u.subscription_tier === 'pro' && <span className="flex items-center gap-0.5 text-xs px-2 py-0.5 bg-amber-900/40 text-amber-400 border border-amber-800/50 rounded-full"><Crown className="w-2.5 h-2.5" /> Pro</span>}
                             {!u.is_approved && <span className="text-xs px-2 py-0.5 bg-yellow-900/30 text-yellow-400 rounded-full">Pending</span>}
                             {u.is_suspended && <span className="text-xs px-2 py-0.5 bg-red-900/30 text-red-400 rounded-full">Suspended</span>}
+                            {!u.is_verified && u.role !== 'admin' && <span className="text-xs px-2 py-0.5 bg-orange-900/30 text-orange-400 rounded-full">Unverified Email</span>}
+                            {getUserMissingFields(u).length > 0 && u.role !== 'admin' && <span className="text-xs px-2 py-0.5 bg-blue-900/30 text-blue-400 rounded-full">Incomplete</span>}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
+                          {getUserMissingFields(u).length > 0 && u.role !== 'admin' && (
+                            <button
+                              onClick={() => sendReminder(u)}
+                              disabled={sendingReminderId === u.id}
+                              className="text-xs bg-blue-900/30 text-blue-400 border border-blue-800 px-3 py-1.5 rounded-lg hover:bg-blue-900/50 transition-colors flex items-center gap-1"
+                            >
+                              <Mail className="w-3 h-3" /> {sendingReminderId === u.id ? 'Sending...' : 'Remind'}
+                            </button>
+                          )}
                           {!u.is_approved && (
                             <button onClick={() => approveProfile(u.id)} className="text-xs bg-green-900/30 text-green-400 border border-green-800 px-3 py-1.5 rounded-lg hover:bg-green-900/50 transition-colors">Approve</button>
                           )}
