@@ -246,7 +246,7 @@ export default function Admin() {
       pendingPayments: allPayments.filter(p => p.status === 'pending').length,
       activeSubscriptions: (subscriptionsData || []).length,
       totalCommissions: allCommissions.reduce((s, c) => s + c.commission_amount, 0),
-      pendingVerification: mechProfiles.filter(m => !m.is_verified && m.profile?.is_approved && !m.profile?.is_suspended).length,
+      pendingVerification: mechProfiles.filter(m => !m.is_verified && !m.profile?.is_suspended).length,
       verifiedMechanics: mechProfiles.filter(m => m.is_verified).length,
     });
 
@@ -263,6 +263,9 @@ export default function Admin() {
     }).eq('id', mechId);
 
     if (!error) {
+      if (approve) {
+        await supabase.from('profiles').update({ is_approved: true }).eq('id', userId);
+      }
       await supabase.from('notifications').insert({
         user_id: userId,
         title: approve ? 'Profile Verified — Now on Marketplace!' : 'Profile Verification Update',
@@ -271,11 +274,18 @@ export default function Admin() {
           : `Your profile verification was not approved. ${notes ? `Reason: ${notes}` : 'Please complete your profile and reapply.'}`,
         type: approve ? 'success' : 'warning',
       });
-      setMechanicProfiles(prev => prev.map(m =>
-        m.id === mechId
-          ? { ...m, is_verified: approve, verified_at: approve ? new Date().toISOString() : null, verification_notes: notes }
-          : m
-      ));
+      setMechanicProfiles(prev => prev.map(m => {
+        if (m.id === mechId) {
+          return {
+            ...m,
+            is_verified: approve,
+            verified_at: approve ? new Date().toISOString() : null,
+            verification_notes: notes,
+            profile: m.profile && approve ? { ...m.profile, is_approved: true } : m.profile,
+          };
+        }
+        return m;
+      }));
       setStats(prev => ({
         ...prev,
         verifiedMechanics: approve ? prev.verifiedMechanics + 1 : Math.max(0, prev.verifiedMechanics - 1),
@@ -456,9 +466,9 @@ export default function Admin() {
     const matchSearch = !s || m.profile?.name?.toLowerCase().includes(s) || m.profile?.email?.toLowerCase().includes(s) || m.profile?.location?.toLowerCase().includes(s);
     const matchFilter =
       verifyFilter === 'all' ? true :
-      verifyFilter === 'pending' ? (!m.is_verified && m.profile?.is_approved && !m.profile?.is_suspended) :
+      verifyFilter === 'pending' ? (!m.is_verified && !m.profile?.is_suspended) :
       verifyFilter === 'verified' ? m.is_verified :
-      verifyFilter === 'rejected' ? (!m.is_verified && m.profile?.is_approved && m.verification_notes != null) :
+      verifyFilter === 'rejected' ? (!m.is_verified && m.verification_notes != null) :
       true;
     return matchSearch && matchFilter;
   });
