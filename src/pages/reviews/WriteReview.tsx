@@ -70,7 +70,7 @@ export default function WriteReview() {
       mechanic_id: mechanicId,
       reviewed_id: mechanicId,
       reviewer_id: user.id,
-      breakdown_request_id: requestId ?? null,
+      breakdown_request_id: null,
       related_id: requestId ?? null,
       rating,
       comment: comment.trim() || null,
