@@ -1394,7 +1394,7 @@ export default function Admin() {
               )}
 
               {/* ===== LISTINGS ===== */}
-              {tab === 'listings' && <AdminListings />}
+              {tab === 'listings' && <AdminListings adminId={adminProfile?.id ?? ''} />}
 
               {/* ===== PLATFORM SETTINGS ===== */}
               {tab === 'platform_settings' && (
