@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { checkUserCanAct, spendCredits } from '../../lib/credits';
 import { fetchPromoConfig } from '../../lib/promoMode';
-import PhotoUpload from '../../components/ui/PhotoUpload';
+import MultiPhotoUpload from '../../components/ui/MultiPhotoUpload';
 import toast from 'react-hot-toast';
 
 const CATEGORIES = ['hydraulics', 'engine', 'electrical', 'filters', 'sensors', 'valves', 'transmission', 'undercarriage', 'other'];
@@ -16,18 +16,18 @@ export default function NewPartListing() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
+  const [form, setForm] = useState({
+    part_name: '', part_number: '', description: '',
+    category: 'other', price: '', stock_quantity: '1',
+  });
 
   useEffect(() => {
     if (profile && profile.role !== 'supplier' && profile.role !== 'admin') {
       navigate('/dashboard', { replace: true });
     }
   }, [profile, navigate]);
-  const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
-  const [form, setForm] = useState({
-    part_name: '', part_number: '', description: '',
-    category: 'other', price: '', stock_quantity: '1',
-  });
 
   const toggleMachine = (m: string) =>
     setSelectedMachines(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
@@ -36,8 +36,8 @@ export default function NewPartListing() {
     e.preventDefault();
     if (!profile || (profile.role !== 'supplier' && profile.role !== 'admin')) return;
 
-    if (!photoUrl) {
-      toast.error('Please upload a photo of the part.');
+    if (photoUrls.length === 0) {
+      toast.error('Please upload at least one photo of the part.');
       return;
     }
 
@@ -91,9 +91,11 @@ export default function NewPartListing() {
       price: parseFloat(form.price),
       stock_quantity: parseInt(form.stock_quantity),
       machine_compatibility: selectedMachines,
-      image_url: photoUrl,
+      image_url: photoUrls[0],
+      image_urls: photoUrls,
       is_active: true,
     });
+
     if (!error) {
       toast.success('Part listing added!');
       navigate('/dashboard');
@@ -119,13 +121,13 @@ export default function NewPartListing() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-              <PhotoUpload
-                photoUrl={photoUrl}
-                onUpload={setPhotoUrl}
-                onRemove={() => setPhotoUrl(null)}
-                label="Part Photo"
+              <MultiPhotoUpload
+                urls={photoUrls}
+                onChange={setPhotoUrls}
+                label="Part Photos"
                 required
                 folder="parts"
+                maxPhotos={6}
               />
             </div>
 
@@ -149,7 +151,7 @@ export default function NewPartListing() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-gray-300 text-sm font-medium mb-1.5">Price ($) *</label>
+                  <label className="block text-gray-300 text-sm font-medium mb-1.5">Price (ETB) *</label>
                   <input type="number" value={form.price} onChange={e => fc('price', e.target.value)} required min="0" step="0.01" placeholder="0.00"
                     className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-2.5 px-3 outline-none transition-colors" />
                 </div>
@@ -182,7 +184,7 @@ export default function NewPartListing() {
               <Link to="/dashboard" className="flex-1 text-center border border-gray-700 hover:border-gray-500 text-gray-300 font-semibold py-3 rounded-xl transition-colors">
                 Cancel
               </Link>
-              <button type="submit" disabled={loading || !photoUrl}
+              <button type="submit" disabled={loading || photoUrls.length === 0}
                 className="flex-1 bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 disabled:cursor-not-allowed text-gray-900 font-bold py-3 rounded-xl transition-colors">
                 {loading ? 'Adding...' : 'Add Listing'}
               </button>

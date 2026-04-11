@@ -44,6 +44,7 @@ import PrivacyPolicy from './pages/legal/PrivacyPolicy';
 import TermsOfService from './pages/legal/TermsOfService';
 import Onboarding from './pages/onboarding/Onboarding';
 import ReferralDashboard from './pages/referrals/ReferralDashboard';
+import SupplierContact from './pages/profile/SupplierContact';
 
 function IdleWarningModal() {
   const { idleWarning, idleSecondsLeft, resetIdleTimer, signOut } = useAuth();
@@ -164,6 +165,7 @@ function AppContent() {
         <Route path="/ai-diagnose" element={<ProtectedRoute><AiDiagnose /></ProtectedRoute>} />
         <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
         <Route path="/referrals" element={<ProtectedRoute><ReferralDashboard /></ProtectedRoute>} />
+        <Route path="/supplier/:supplierId/contact" element={<SupplierContact />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
       </Routes>

@@ -140,6 +140,7 @@ export interface PartsListing {
   price: number;
   stock_quantity: number;
   image_url: string | null;
+  image_urls: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
