@@ -18,7 +18,7 @@ export default function NewRentalListing() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (profile && profile.role !== 'rental_provider' && profile.role !== 'admin') {
+    if (profile && !profile.role) {
       navigate('/dashboard', { replace: true });
     }
   }, [profile, navigate]);
@@ -29,7 +29,7 @@ export default function NewRentalListing() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile || (profile.role !== 'rental_provider' && profile.role !== 'admin')) return;
+    if (!profile) return;
 
     if (!photoUrl) {
       toast.error('Please upload a photo of the equipment.');
