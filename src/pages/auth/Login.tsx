@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wrench, Mail, Lock, Eye, EyeOff, AlertCircle, ArrowLeft, CheckCircle, ShieldAlert, Clock, MailCheck } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../lib/i18n/LanguageContext';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -18,6 +19,7 @@ const ROLE_REDIRECT: Record<string, string> = {
 
 export default function Login() {
   const { signIn } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as any)?.from?.pathname || null;
@@ -60,12 +62,12 @@ export default function Login() {
       const rem = result.remaining ?? null;
       setRemainingAttempts(rem);
       if (rem !== null && rem <= 2) {
-        setError(`Invalid credentials. ${rem} attempt${rem === 1 ? '' : 's'} remaining before temporary lock.`);
+        setError(`${t.auth.invalidCredentials} ${rem} ${t.auth.attemptsRemaining}`);
       } else {
-        setError('Invalid email or password. Please try again.');
+        setError(t.auth.invalidEmailOrPassword);
       }
     } else {
-      toast.success('Welcome back!');
+      toast.success(t.auth.welcomeBackToast);
       if (result.profile && !result.profile.onboarding_completed) {
         navigate('/onboarding', { replace: true });
       } else {
@@ -83,7 +85,7 @@ export default function Login() {
     });
     setResetLoading(false);
     if (error) {
-      toast.error('Failed to send reset email. Please try again.');
+      toast.error(t.auth.resetLinkFailed || 'Failed to send reset email. Please try again.');
     } else {
       setResetSent(true);
     }
@@ -122,13 +124,13 @@ export default function Login() {
             <AnimatePresence mode="wait">
               {forgotMode ? (
                 <motion.div key="forgot" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                  <h1 className="text-3xl font-black text-white">Reset password</h1>
-                  <p className="text-gray-400 mt-2">We'll send a reset link to your email</p>
+                  <h1 className="text-3xl font-black text-white">{t.auth.resetPassword}</h1>
+                  <p className="text-gray-400 mt-2">{t.auth.resetSentTo}</p>
                 </motion.div>
               ) : (
                 <motion.div key="login" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-                  <h1 className="text-3xl font-black text-white">Welcome back</h1>
-                  <p className="text-gray-400 mt-2">Sign in to your account</p>
+                  <h1 className="text-3xl font-black text-white">{t.auth.welcomeBack}</h1>
+                  <p className="text-gray-400 mt-2">{t.auth.signInToAccount}</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -142,21 +144,21 @@ export default function Login() {
                     <div className="w-16 h-16 bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                       <CheckCircle className="w-8 h-8 text-green-400" />
                     </div>
-                    <h3 className="text-white font-bold text-lg mb-2">Check your inbox</h3>
+                    <h3 className="text-white font-bold text-lg mb-2">{t.auth.checkInbox}</h3>
                     <p className="text-gray-400 text-sm mb-6">
-                      We sent a password reset link to <span className="text-white font-medium">{resetEmail}</span>
+                      {t.auth.resetLinkSent} <span className="text-white font-medium">{resetEmail}</span>
                     </p>
                     <button
                       onClick={() => { setForgotMode(false); setResetSent(false); setResetEmail(''); }}
                       className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 text-sm font-medium mx-auto transition-colors"
                     >
-                      <ArrowLeft className="w-4 h-4" /> Back to sign in
+                      <ArrowLeft className="w-4 h-4" /> {t.auth.backToSignIn}
                     </button>
                   </div>
                 ) : (
                   <form onSubmit={handleForgotPassword} className="space-y-4">
                     <div>
-                      <label className="block text-gray-300 text-sm font-medium mb-1.5">Email Address</label>
+                      <label className="block text-gray-300 text-sm font-medium mb-1.5">{t.auth.emailAddress}</label>
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                         <input
@@ -174,14 +176,14 @@ export default function Login() {
                       disabled={resetLoading}
                       className="w-full bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 text-gray-900 font-bold py-3 rounded-lg transition-colors"
                     >
-                      {resetLoading ? 'Sending...' : 'Send Reset Link'}
+                      {resetLoading ? t.auth.sending : t.auth.sendResetLink}
                     </button>
                     <button
                       type="button"
                       onClick={() => setForgotMode(false)}
                       className="w-full flex items-center justify-center gap-2 text-gray-400 hover:text-white text-sm transition-colors py-2"
                     >
-                      <ArrowLeft className="w-4 h-4" /> Back to sign in
+                      <ArrowLeft className="w-4 h-4" /> {t.auth.backToSignIn}
                     </button>
                   </form>
                 )}
@@ -193,10 +195,10 @@ export default function Login() {
                     <div className="bg-blue-900/30 border border-blue-700 text-blue-300 px-4 py-3 rounded-lg text-sm">
                       <div className="flex items-center gap-2 mb-1">
                         <MailCheck className="w-4 h-4 flex-shrink-0 text-blue-400" />
-                        <span className="font-semibold text-blue-400">Please verify your email before logging in.</span>
+                        <span className="font-semibold text-blue-400">{t.auth.verifyEmailFirst}</span>
                       </div>
                       <p className="text-blue-300/80 text-xs mt-1">
-                        Check your inbox for the verification link we sent when you signed up.
+                        {t.auth.checkInboxVerification}
                       </p>
                     </div>
                   )}
@@ -204,12 +206,12 @@ export default function Login() {
                     <div className="bg-orange-900/30 border border-orange-800 text-orange-300 px-4 py-3 rounded-lg text-sm">
                       <div className="flex items-center gap-2 mb-1">
                         <ShieldAlert className="w-4 h-4 flex-shrink-0 text-orange-400" />
-                        <span className="font-semibold text-orange-400">Account temporarily locked</span>
+                        <span className="font-semibold text-orange-400">{t.auth.accountTemporarilyLocked}</span>
                       </div>
-                      <p>Too many failed attempts. Please wait before trying again.</p>
+                      <p>{t.auth.tooManyAttempts}</p>
                       {resetIn > 0 && (
                         <p className="flex items-center gap-1 mt-1 text-orange-400/80 text-xs">
-                          <Clock className="w-3 h-3" /> Resets in approximately {Math.ceil(resetIn / 60)} minute{Math.ceil(resetIn / 60) !== 1 ? 's' : ''}
+                          <Clock className="w-3 h-3" /> {t.auth.resetsIn} {Math.ceil(resetIn / 60)} {t.auth.minutes}
                         </p>
                       )}
                     </div>
@@ -226,7 +228,7 @@ export default function Login() {
                   )}
 
                   <div>
-                    <label className="block text-gray-300 text-sm font-medium mb-1.5">Email Address</label>
+                    <label className="block text-gray-300 text-sm font-medium mb-1.5">{t.auth.emailAddress}</label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                       <input
@@ -234,7 +236,7 @@ export default function Login() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
-                        placeholder="you@example.com"
+                        placeholder={t.auth.emailPlaceholder}
                         className="w-full bg-gray-900 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-3 pl-10 pr-4 outline-none transition-colors"
                       />
                     </div>
@@ -242,13 +244,13 @@ export default function Login() {
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-gray-300 text-sm font-medium">Password</label>
+                      <label className="block text-gray-300 text-sm font-medium">{t.auth.password}</label>
                       <button
                         type="button"
                         onClick={() => { setForgotMode(true); setResetEmail(email); }}
                         className="text-yellow-400 hover:text-yellow-300 text-xs font-medium transition-colors"
                       >
-                        Forgot password?
+                        {t.auth.forgotPassword}
                       </button>
                     </div>
                     <div className="relative">
@@ -272,13 +274,13 @@ export default function Login() {
                     disabled={loading || rateLimited}
                     className="w-full bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 disabled:cursor-not-allowed text-gray-900 font-bold py-3 rounded-lg transition-colors mt-2"
                   >
-                    {loading ? 'Signing in...' : rateLimited ? 'Account Locked' : 'Sign In'}
+                    {loading ? t.auth.signingIn : rateLimited ? t.auth.accountLocked : t.auth.signIn}
                   </button>
                 </form>
 
                 <p className="text-center text-gray-400 text-sm mt-6">
-                  Don't have an account?{' '}
-                  <Link to="/register" className="text-yellow-400 hover:text-yellow-300 font-medium">Create one</Link>
+                  {t.auth.noAccount}{' '}
+                  <Link to="/register" className="text-yellow-400 hover:text-yellow-300 font-medium">{t.auth.createOne}</Link>
                 </p>
               </motion.div>
             )}

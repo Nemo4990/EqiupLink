@@ -5,11 +5,13 @@ import { supabase } from '../../lib/supabase';
 import { MechanicProfile } from '../../types';
 import MechanicCard from '../../components/cards/MechanicCard';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { useLanguage } from '../../lib/i18n/LanguageContext';
 
 const SPECIALIZATIONS = ['hydraulics', 'engine', 'electrical', 'transmission', 'undercarriage', 'pneumatics'];
 const BRANDS = ['Caterpillar', 'Komatsu', 'John Deere', 'Hitachi', 'Volvo', 'Liebherr', 'JCB', 'Case', 'Doosan'];
 
 export default function Mechanics() {
+  const { t } = useLanguage();
   const [mechanics, setMechanics] = useState<MechanicProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -72,9 +74,9 @@ export default function Mechanics() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3 mb-2">
             <Wrench className="w-6 h-6 text-yellow-400" />
-            <h1 className="text-3xl font-black text-white">Find Mechanics</h1>
+            <h1 className="text-3xl font-black text-white">{t.mechanics.title}</h1>
           </div>
-          <p className="text-gray-400">Admin-verified technicians for all heavy equipment brands</p>
+          <p className="text-gray-400">{t.mechanics.subtitle}</p>
 
           <form onSubmit={handleSearch} className="mt-6 flex gap-3">
             <div className="relative flex-1">
@@ -83,12 +85,12 @@ export default function Mechanics() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, specialty, or location..."
+                placeholder={t.mechanics.searchPlaceholder}
                 className="w-full bg-gray-900 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-500 rounded-xl py-3 pl-12 pr-4 outline-none transition-colors"
               />
             </div>
             <button type="submit" className="bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-semibold px-6 py-3 rounded-xl transition-colors">
-              Search
+              {t.mechanics.search}
             </button>
             <button
               type="button"
@@ -96,7 +98,7 @@ export default function Mechanics() {
               className={`flex items-center gap-2 border px-4 py-3 rounded-xl transition-colors ${showFilters ? 'border-yellow-400 text-yellow-400' : 'border-gray-700 text-gray-400 hover:border-gray-500'}`}
             >
               <SlidersHorizontal className="w-4 h-4" />
-              <span className="hidden sm:inline">Filters</span>
+              <span className="hidden sm:inline">{t.mechanics.filters}</span>
             </button>
           </form>
 
@@ -108,24 +110,24 @@ export default function Mechanics() {
             >
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-gray-300 text-sm font-medium block mb-2">Specialization</label>
+                  <label className="text-gray-300 text-sm font-medium block mb-2">{t.mechanics.specialization}</label>
                   <select
                     value={selectedSpec}
                     onChange={(e) => setSelectedSpec(e.target.value)}
                     className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg py-2 px-3 outline-none capitalize"
                   >
-                    <option value="">All Specializations</option>
+                    <option value="">{t.mechanics.allSpecializations}</option>
                     {SPECIALIZATIONS.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-gray-300 text-sm font-medium block mb-2">Machine Brand</label>
+                  <label className="text-gray-300 text-sm font-medium block mb-2">{t.mechanics.machineBrand}</label>
                   <select
                     value={selectedBrand}
                     onChange={(e) => setSelectedBrand(e.target.value)}
                     className="w-full bg-gray-800 border border-gray-700 text-white rounded-lg py-2 px-3 outline-none"
                   >
-                    <option value="">All Brands</option>
+                    <option value="">{t.mechanics.allBrands}</option>
                     {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
                   </select>
                 </div>

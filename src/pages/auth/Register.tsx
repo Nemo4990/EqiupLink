@@ -3,18 +3,19 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Wrench, Mail, Lock, User, Eye, EyeOff, AlertCircle, HardHat, Truck, Package, Phone, MapPin, ChevronDown, Gift, Check, X as XIcon, Upload, FileText, Camera as CameraIcon, Image as ImageIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../lib/i18n/LanguageContext';
 import { validateReferralCode, processReferral } from '../../lib/referrals';
 import { supabase } from '../../lib/supabase';
 import { Capacitor } from '@capacitor/core';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import toast from 'react-hot-toast';
 
-const ROLES = [
-  { id: 'owner', label: 'Equipment Owner', desc: 'Post breakdown requests, manage machines', icon: HardHat, color: 'text-yellow-400' },
-  { id: 'mechanic', label: 'Mechanic / Technician', desc: 'Offer repair and maintenance services', icon: Wrench, color: 'text-orange-400' },
-  { id: 'supplier', label: 'Spare Parts Supplier', desc: 'List and sell spare parts', icon: Package, color: 'text-blue-400' },
-  { id: 'rental_provider', label: 'Equipment Rental Provider', desc: 'List machines for rent', icon: Truck, color: 'text-green-400' },
-];
+const ROLE_META = [
+  { id: 'owner', icon: HardHat, color: 'text-yellow-400' },
+  { id: 'mechanic', icon: Wrench, color: 'text-orange-400' },
+  { id: 'supplier', icon: Package, color: 'text-blue-400' },
+  { id: 'rental_provider', icon: Truck, color: 'text-green-400' },
+] as const;
 
 const ETHIOPIAN_REGIONS = [
   'Addis Ababa',
@@ -35,6 +36,7 @@ const ETHIOPIAN_REGIONS = [
 
 export default function Register() {
   const { signUp } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -116,14 +118,14 @@ export default function Register() {
     e.preventDefault();
     setError('');
     if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+      setError(t.auth.passwordTooShort);
       return;
     }
     if (role === 'supplier') {
-      if (!tradeLicenseUrl) { setError('Trade license photo is required for supplier accounts.'); return; }
-      if (!tradeLicenseName.trim()) { setError('Registered business name on the trade license is required.'); return; }
+      if (!tradeLicenseUrl) { setError(t.auth.tradeLicenseRequired); return; }
+      if (!tradeLicenseName.trim()) { setError(t.auth.businessNameRequired); return; }
       if (tradeLicenseName.trim().toLowerCase() !== name.trim().toLowerCase()) {
-        setError('The registered name on the trade license must match your account name.');
+        setError(t.auth.nameMismatch);
         return;
       }
     }
@@ -164,7 +166,7 @@ export default function Register() {
           await supabase.from('profiles').update({ trade_license_status: 'pending' }).eq('id', newUser.id);
         }
       }
-      toast.success('Account created! Welcome to EquipLink.');
+      toast.success(t.auth.accountCreated);
       navigate('/onboarding');
     }
   };
@@ -183,8 +185,8 @@ export default function Register() {
             </div>
             <span className="text-white font-bold text-2xl">Equip<span className="text-yellow-400">Link</span></span>
           </Link>
-          <h1 className="text-3xl font-black text-white">Create your account</h1>
-          <p className="text-gray-400 mt-2">Join the heavy equipment service marketplace</p>
+          <h1 className="text-3xl font-black text-white">{t.auth.createAccount}</h1>
+          <p className="text-gray-400 mt-2">{t.auth.joinMarketplace}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -200,31 +202,40 @@ export default function Register() {
           )}
 
           <div>
-            <label className="block text-gray-300 text-sm font-medium mb-3">I am a...</label>
+            <label className="block text-gray-300 text-sm font-medium mb-3">{t.auth.iAmA}</label>
             <div className="grid grid-cols-2 gap-2">
-              {ROLES.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => setRole(r.id)}
-                  className={`flex items-start gap-3 p-3 rounded-xl border transition-all text-left ${
-                    role === r.id
-                      ? 'border-yellow-400 bg-yellow-400/10'
-                      : 'border-gray-700 bg-gray-900 hover:border-gray-600'
-                  }`}
-                >
-                  <r.icon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${role === r.id ? r.color : 'text-gray-500'}`} />
-                  <div>
-                    <p className={`text-sm font-medium ${role === r.id ? 'text-white' : 'text-gray-400'}`}>{r.label}</p>
-                    <p className="text-gray-500 text-xs mt-0.5">{r.desc}</p>
-                  </div>
-                </button>
-              ))}
+              {ROLE_META.map((r) => {
+                const labels: Record<string, { label: string; desc: string }> = {
+                  owner: { label: t.auth.roleOwner, desc: t.auth.roleOwnerDesc },
+                  mechanic: { label: t.auth.roleMechanic, desc: t.auth.roleMechanicDesc },
+                  supplier: { label: t.auth.roleSupplier, desc: t.auth.roleSupplierDesc },
+                  rental_provider: { label: t.auth.roleRental, desc: t.auth.roleRentalDesc },
+                };
+                const rl = labels[r.id];
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => setRole(r.id)}
+                    className={`flex items-start gap-3 p-3 rounded-xl border transition-all text-left ${
+                      role === r.id
+                        ? 'border-yellow-400 bg-yellow-400/10'
+                        : 'border-gray-700 bg-gray-900 hover:border-gray-600'
+                    }`}
+                  >
+                    <r.icon className={`w-5 h-5 mt-0.5 flex-shrink-0 ${role === r.id ? r.color : 'text-gray-500'}`} />
+                    <div>
+                      <p className={`text-sm font-medium ${role === r.id ? 'text-white' : 'text-gray-400'}`}>{rl.label}</p>
+                      <p className="text-gray-500 text-xs mt-0.5">{rl.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           <div>
-            <label className="block text-gray-300 text-sm font-medium mb-1.5">Full Name</label>
+            <label className="block text-gray-300 text-sm font-medium mb-1.5">{t.auth.fullName}</label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
@@ -232,14 +243,14 @@ export default function Register() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                placeholder="John Smith"
+                placeholder={t.auth.fullNamePlaceholder}
                 className="w-full bg-gray-900 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-3 pl-10 pr-4 outline-none transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-gray-300 text-sm font-medium mb-1.5">Email Address</label>
+            <label className="block text-gray-300 text-sm font-medium mb-1.5">{t.auth.emailAddress}</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
@@ -247,7 +258,7 @@ export default function Register() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                placeholder="you@example.com"
+                placeholder={t.auth.emailPlaceholder}
                 className="w-full bg-gray-900 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-3 pl-10 pr-4 outline-none transition-colors"
               />
             </div>
@@ -255,21 +266,21 @@ export default function Register() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-gray-300 text-sm font-medium mb-1.5">Phone Number</label>
+              <label className="block text-gray-300 text-sm font-medium mb-1.5">{t.auth.phoneNumber}</label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                 <input
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+251 9XX XXX XXX"
+                  placeholder={t.auth.phonePlaceholder}
                   className="w-full bg-gray-900 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-3 pl-10 pr-4 outline-none transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-gray-300 text-sm font-medium mb-1.5">Region</label>
+              <label className="block text-gray-300 text-sm font-medium mb-1.5">{t.auth.region}</label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
@@ -278,7 +289,7 @@ export default function Register() {
                   onChange={(e) => setLocation(e.target.value)}
                   className="w-full bg-gray-900 border border-gray-700 focus:border-yellow-400 text-white rounded-lg py-3 pl-10 pr-8 outline-none transition-colors appearance-none"
                 >
-                  <option value="" className="text-gray-500">Select region</option>
+                  <option value="" className="text-gray-500">{t.auth.selectRegion}</option>
                   {ETHIOPIAN_REGIONS.map((r) => (
                     <option key={r} value={r} className="bg-gray-900 text-white">{r}</option>
                   ))}
@@ -288,7 +299,7 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-gray-300 text-sm font-medium mb-1.5">Password</label>
+            <label className="block text-gray-300 text-sm font-medium mb-1.5">{t.auth.password}</label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
@@ -297,7 +308,7 @@ export default function Register() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                placeholder="Min. 6 characters"
+                placeholder={t.auth.passwordMinChars}
                 className="w-full bg-gray-900 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-3 pl-10 pr-10 outline-none transition-colors"
               />
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
@@ -307,7 +318,7 @@ export default function Register() {
           </div>
 
           <div>
-            <label className="block text-gray-300 text-sm font-medium mb-1.5">Referral Code <span className="text-gray-500">(optional)</span></label>
+            <label className="block text-gray-300 text-sm font-medium mb-1.5">{t.auth.referralCode}</label>
             <div className="relative">
               <Gift className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input
@@ -319,7 +330,7 @@ export default function Register() {
                   if (val.length >= 4) checkReferral(val);
                   else { setReferralValid(null); setReferrerId(null); }
                 }}
-                placeholder="Enter referral code"
+                placeholder={t.auth.referralPlaceholder}
                 maxLength={12}
                 className="w-full bg-gray-900 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-3 pl-10 pr-10 outline-none transition-colors font-mono tracking-wider"
               />
@@ -334,10 +345,10 @@ export default function Register() {
               )}
             </div>
             {referralValid === true && referrerName && (
-              <p className="text-green-400 text-xs mt-1">Referred by {referrerName} - you'll both get bonus credits!</p>
+              <p className="text-green-400 text-xs mt-1">{t.auth.referredBy} {referrerName} - {t.auth.bothGetCredits}</p>
             )}
             {referralValid === false && referralCode.length >= 4 && (
-              <p className="text-red-400 text-xs mt-1">Invalid referral code</p>
+              <p className="text-red-400 text-xs mt-1">{t.auth.invalidReferralCode}</p>
             )}
           </div>
 
@@ -346,45 +357,45 @@ export default function Register() {
               <div className="flex items-center gap-2 mb-1">
                 <FileText className="w-5 h-5 text-yellow-400" />
                 <div>
-                  <p className="text-white font-semibold text-sm">Ethiopian Trade License</p>
-                  <p className="text-gray-400 text-xs">Required for all supplier accounts. The registered name must match your account name above.</p>
+                  <p className="text-white font-semibold text-sm">{t.auth.tradeLicenseTitle}</p>
+                  <p className="text-gray-400 text-xs">{t.auth.tradeLicenseDesc}</p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-gray-300 text-sm font-medium mb-1.5">Registered Business Name <span className="text-red-400">*</span></label>
+                <label className="block text-gray-300 text-sm font-medium mb-1.5">{t.auth.registeredBusinessName} <span className="text-red-400">*</span></label>
                 <input
                   type="text"
                   value={tradeLicenseName}
                   onChange={(e) => setTradeLicenseName(e.target.value)}
-                  placeholder="Name exactly as on your trade license"
+                  placeholder={t.auth.registeredNamePlaceholder}
                   className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-3 px-4 outline-none transition-colors"
                 />
                 {tradeLicenseName && name && tradeLicenseName.trim().toLowerCase() !== name.trim().toLowerCase() && (
                   <p className="text-orange-400 text-xs mt-1 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" /> Must match the Full Name field above
+                    <AlertCircle className="w-3 h-3" /> {t.auth.mustMatchName}
                   </p>
                 )}
                 {tradeLicenseName && name && tradeLicenseName.trim().toLowerCase() === name.trim().toLowerCase() && (
                   <p className="text-green-400 text-xs mt-1 flex items-center gap-1">
-                    <Check className="w-3 h-3" /> Name matches
+                    <Check className="w-3 h-3" /> {t.auth.nameMatches}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-gray-300 text-sm font-medium mb-1.5">License Number <span className="text-gray-500">(optional)</span></label>
+                <label className="block text-gray-300 text-sm font-medium mb-1.5">{t.auth.licenseNumber}</label>
                 <input
                   type="text"
                   value={tradeLicenseNumber}
                   onChange={(e) => setTradeLicenseNumber(e.target.value)}
-                  placeholder="e.g. TL-AA-12345"
+                  placeholder={t.auth.licenseNumberPlaceholder}
                   className="w-full bg-gray-800 border border-gray-700 focus:border-yellow-400 text-white placeholder-gray-600 rounded-lg py-3 px-4 outline-none transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-gray-300 text-sm font-medium mb-1.5">Trade License Photo <span className="text-red-400">*</span></label>
+                <label className="block text-gray-300 text-sm font-medium mb-1.5">{t.auth.tradeLicensePhoto} <span className="text-red-400">*</span></label>
                 {tradeLicenseUrl ? (
                   <div className="relative rounded-xl overflow-hidden border border-gray-700 bg-gray-800">
                     <img src={tradeLicenseUrl} alt="Trade License" className="w-full h-48 object-cover" />
@@ -397,7 +408,7 @@ export default function Register() {
                       <XIcon className="w-4 h-4 text-white" />
                     </button>
                     <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-green-400 text-xs">
-                      <Check className="w-3.5 h-3.5" /> License uploaded
+                      <Check className="w-3.5 h-3.5" /> {t.auth.licenseUploaded}
                     </div>
                   </div>
                 ) : (
@@ -405,23 +416,23 @@ export default function Register() {
                     {uploadingLicense ? (
                       <>
                         <div className="w-10 h-10 border-2 border-gray-600 border-t-yellow-400 rounded-full animate-spin" />
-                        <p className="text-gray-400 text-sm">Uploading...</p>
+                        <p className="text-gray-400 text-sm">{t.auth.uploading}</p>
                       </>
                     ) : (
                       <>
                         <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center">
                           <ImageIcon className="w-6 h-6 text-gray-400" />
                         </div>
-                        <p className="text-gray-300 text-sm font-medium text-center">Upload a clear photo of your Ethiopian trade license</p>
-                        <p className="text-gray-500 text-xs">JPG, PNG, WebP up to 10MB</p>
+                        <p className="text-gray-300 text-sm font-medium text-center">{t.auth.tradeLicensePhotoDesc}</p>
+                        <p className="text-gray-500 text-xs">{t.auth.photoFormats}</p>
                         <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
                           {Capacitor.isNativePlatform() && (
                             <button type="button" onClick={handleTakeLicensePhoto} className="flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors w-full sm:w-auto">
-                              <CameraIcon className="w-4 h-4" /> Take Photo
+                              <CameraIcon className="w-4 h-4" /> {t.auth.takePhoto}
                             </button>
                           )}
                           <button type="button" onClick={() => licenseInputRef.current?.click()} className="flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm px-4 py-2.5 rounded-lg transition-colors w-full sm:w-auto">
-                            <Upload className="w-4 h-4" /> {Capacitor.isNativePlatform() ? 'Choose from Gallery' : 'Choose Photo'}
+                            <Upload className="w-4 h-4" /> {Capacitor.isNativePlatform() ? t.auth.chooseFromGallery : t.auth.choosePhoto}
                           </button>
                         </div>
                       </>
@@ -438,13 +449,13 @@ export default function Register() {
             disabled={loading}
             className="w-full bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 text-gray-900 font-bold py-3 rounded-lg transition-colors"
           >
-            {loading ? 'Creating account...' : 'Create Account'}
+            {loading ? t.auth.creating : t.auth.createAccount}
           </button>
         </form>
 
         <p className="text-center text-gray-400 text-sm mt-6">
-          Already have an account?{' '}
-          <Link to="/login" className="text-yellow-400 hover:text-yellow-300 font-medium">Sign in</Link>
+          {t.auth.alreadyHaveAccount}{' '}
+          <Link to="/login" className="text-yellow-400 hover:text-yellow-300 font-medium">{t.auth.signIn}</Link>
         </p>
       </motion.div>
     </div>

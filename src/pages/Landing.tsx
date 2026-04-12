@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../lib/i18n/LanguageContext';
 
 const fadeUp = {
   initial: { opacity: 0, y: 30 },
@@ -144,77 +145,22 @@ const DEFAULT_STATS = [
   { stat_value: '98%', stat_label: 'Satisfaction Rate' },
 ];
 
-const SERVICES = [
-  {
-    icon: Wrench,
-    title: 'Find Mechanics',
-    desc: 'Connect with certified field technicians specialized in hydraulics, engines, electrical systems, and transmissions.',
-    color: 'text-yellow-400',
-    border: 'border-yellow-400/20 hover:border-yellow-400/50',
-    bg: 'bg-yellow-400/10',
-    link: '/marketplace/mechanics',
-  },
-  {
-    icon: Package,
-    title: 'Spare Parts',
-    desc: 'Source OEM and aftermarket parts from verified suppliers. Hydraulic pumps, injectors, sensors, filters and more.',
-    color: 'text-orange-400',
-    border: 'border-orange-400/20 hover:border-orange-400/50',
-    bg: 'bg-orange-400/10',
-    link: '/marketplace/parts',
-  },
-  {
-    icon: Truck,
-    title: 'Equipment Rentals',
-    desc: 'Rent excavators, bulldozers, wheel loaders, motor graders and more from trusted providers nationwide.',
-    color: 'text-blue-400',
-    border: 'border-blue-400/20 hover:border-blue-400/50',
-    bg: 'bg-blue-400/10',
-    link: '/marketplace/rentals',
-  },
-  {
-    icon: AlertTriangle,
-    title: 'Emergency Breakdown',
-    desc: 'Post urgent breakdown requests and get responses from nearby mechanics within minutes.',
-    color: 'text-red-400',
-    border: 'border-red-400/20 hover:border-red-400/50',
-    bg: 'bg-red-400/10',
-    link: '/breakdown',
-  },
-];
+const SERVICE_META = [
+  { icon: Wrench, color: 'text-yellow-400', border: 'border-yellow-400/20 hover:border-yellow-400/50', bg: 'bg-yellow-400/10', link: '/marketplace/mechanics', titleKey: 'featFindMechanics', descKey: 'featFindMechanicsDesc' },
+  { icon: Package, color: 'text-orange-400', border: 'border-orange-400/20 hover:border-orange-400/50', bg: 'bg-orange-400/10', link: '/marketplace/parts', titleKey: 'featSpareParts', descKey: 'featSparePartsDesc' },
+  { icon: Truck, color: 'text-blue-400', border: 'border-blue-400/20 hover:border-blue-400/50', bg: 'bg-blue-400/10', link: '/marketplace/rentals', titleKey: 'featRentals', descKey: 'featRentalsDesc' },
+  { icon: AlertTriangle, color: 'text-red-400', border: 'border-red-400/20 hover:border-red-400/50', bg: 'bg-red-400/10', link: '/breakdown', titleKey: 'featBreakdown', descKey: 'featBreakdownDesc' },
+] as const;
 
-const HOW_IT_WORKS = [
-  { step: '01', title: 'Describe Your Need', desc: 'Post a breakdown request, search for parts, or browse mechanics in your area.' },
-  { step: '02', title: 'Get Matched', desc: 'Our platform connects you with qualified professionals based on location and specialization.' },
-  { step: '03', title: 'Connect & Resolve', desc: 'Chat directly, agree on terms, and get your equipment back operational fast.' },
-];
-
-const TESTIMONIALS = [
-  {
-    name: 'Marcus T.',
-    role: 'Site Manager',
-    company: 'T&B Construction',
-    text: 'Found a hydraulic specialist for our Cat D8R within 2 hours of posting. EquipLink saved us from a costly shutdown.',
-    rating: 5,
-  },
-  {
-    name: 'Sarah K.',
-    role: 'Fleet Owner',
-    company: 'K&R Earthmoving',
-    text: 'The parts marketplace is outstanding. I sourced hard-to-find injectors for our Komatsu in the same day.',
-    rating: 5,
-  },
-  {
-    name: 'David R.',
-    role: 'Independent Mechanic',
-    company: 'Diesel Pro Services',
-    text: 'My EquipLink profile has tripled my client base. The platform understands the heavy equipment industry.',
-    rating: 5,
-  },
-];
+const TESTIMONIAL_META = [
+  { name: 'Marcus T.', role: 'Site Manager', company: 'T&B Construction', textKey: 'testimonial1', rating: 5 },
+  { name: 'Sarah K.', role: 'Fleet Owner', company: 'K&R Earthmoving', textKey: 'testimonial2', rating: 5 },
+  { name: 'David R.', role: 'Independent Mechanic', company: 'Diesel Pro Services', textKey: 'testimonial3', rating: 5 },
+] as const;
 
 export default function Landing() {
   const { user, profile } = useAuth();
+  const { t } = useLanguage();
   const [slideIndex, setSlideIndex] = useState(0);
   const [siteStats, setSiteStats] = useState(DEFAULT_STATS);
 
@@ -285,16 +231,16 @@ export default function Landing() {
           <motion.div variants={stagger} initial="initial" animate="animate" className="max-w-3xl">
             <motion.div variants={fadeUp} className="inline-flex items-center gap-2 bg-yellow-400/10 border border-yellow-400/30 text-yellow-400 text-xs sm:text-sm font-medium px-3 py-1.5 sm:px-4 sm:py-2 rounded-full mb-5 sm:mb-6">
               <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
-              <span>Emergency Response Available 24/7</span>
+              <span>{t.landing.emergencyBadge}</span>
             </motion.div>
 
             <motion.h1 variants={fadeUp} className="text-4xl sm:text-5xl lg:text-7xl font-black leading-tight">
-              Heavy Equipment<br />
-              <span className="text-yellow-400">Service Network</span>
+              {t.landing.heroTitle1}<br />
+              <span className="text-yellow-400">{t.landing.heroTitle2}</span>
             </motion.h1>
 
             <motion.p variants={fadeUp} className="mt-4 sm:mt-6 text-base sm:text-xl text-gray-300 leading-relaxed max-w-2xl">
-              The industrial marketplace connecting contractors with certified mechanics, parts suppliers, and rental providers across major construction sites nationwide.
+              {t.landing.heroSubtitle}
             </motion.p>
 
             <motion.div variants={fadeUp} className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -302,18 +248,18 @@ export default function Landing() {
                 to="/marketplace/mechanics"
                 className="flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all duration-200 shadow-lg shadow-yellow-400/20 hover:shadow-yellow-400/40"
               >
-                <Search className="w-5 h-5" /> Find a Mechanic
+                <Search className="w-5 h-5" /> {t.landing.findMechanic}
               </Link>
               <Link
                 to="/breakdown"
                 className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 backdrop-blur-sm border border-white/20 hover:border-white/40 text-white font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all duration-200"
               >
-                <AlertTriangle className="w-5 h-5 text-orange-400" /> Post Breakdown
+                <AlertTriangle className="w-5 h-5 text-orange-400" /> {t.landing.postBreakdown}
               </Link>
             </motion.div>
 
             <motion.div variants={fadeUp} className="mt-8 sm:mt-10">
-              <p className="text-gray-500 text-xs uppercase tracking-widest mb-3 font-medium">Trusted for equipment from</p>
+              <p className="text-gray-500 text-xs uppercase tracking-widest mb-3 font-medium">{t.landing.trustedFor}</p>
               <div className="flex flex-wrap gap-2 sm:gap-3">
                 {BRANDS.slice(0, 8).map((brand) => (
                   <div key={brand.name} className="flex items-center gap-1.5 bg-gray-900/70 backdrop-blur-sm border border-gray-800 rounded-lg px-2.5 sm:px-3 py-1.5">
@@ -355,8 +301,8 @@ export default function Landing() {
             viewport={{ once: true }}
             className="text-center mb-8 sm:mb-12"
           >
-            <h2 className="text-xl sm:text-2xl font-bold text-gray-400 uppercase tracking-widest mb-2">Equipment Brands We Support</h2>
-            <p className="text-gray-500 text-sm">Mechanics and parts suppliers for every major manufacturer</p>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-400 uppercase tracking-widest mb-2">{t.landing.brandsTitle}</h2>
+            <p className="text-gray-500 text-sm">{t.landing.brandsSubtitle}</p>
           </motion.div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -389,8 +335,8 @@ export default function Landing() {
           viewport={{ once: true }}
           className="text-center mb-10 sm:mb-12"
         >
-          <h2 className="text-3xl sm:text-4xl font-black">One Platform, Every Need</h2>
-          <p className="text-gray-400 mt-3 text-base sm:text-lg">Everything the construction industry needs to keep machines running</p>
+          <h2 className="text-3xl sm:text-4xl font-black">{t.landing.platformTitle}</h2>
+          <p className="text-gray-400 mt-3 text-base sm:text-lg">{t.landing.platformSubtitle}</p>
         </motion.div>
 
         <motion.div
@@ -400,8 +346,8 @@ export default function Landing() {
           viewport={{ once: true }}
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6"
         >
-          {SERVICES.map((service) => (
-            <motion.div key={service.title} variants={fadeUp}>
+          {SERVICE_META.map((service) => (
+            <motion.div key={service.titleKey} variants={fadeUp}>
               <Link to={service.link}>
                 <motion.div
                   whileHover={{ y: -6, boxShadow: '0 20px 40px rgba(0,0,0,0.4)' }}
@@ -410,10 +356,10 @@ export default function Landing() {
                   <div className={`w-11 h-11 sm:w-12 sm:h-12 ${service.bg} rounded-xl flex items-center justify-center mb-4`}>
                     <service.icon className={`w-5 h-5 sm:w-6 sm:h-6 ${service.color}`} />
                   </div>
-                  <h3 className="text-white font-bold text-base sm:text-lg mb-2">{service.title}</h3>
-                  <p className="text-gray-400 text-sm leading-relaxed">{service.desc}</p>
+                  <h3 className="text-white font-bold text-base sm:text-lg mb-2">{t.landing[service.titleKey]}</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed">{t.landing[service.descKey]}</p>
                   <div className={`mt-4 flex items-center gap-1 text-sm font-medium ${service.color}`}>
-                    <span>Explore</span><ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-4 h-4" />
                   </div>
                 </motion.div>
               </Link>
@@ -438,12 +384,16 @@ export default function Landing() {
             viewport={{ once: true }}
             className="text-center mb-10 sm:mb-12"
           >
-            <h2 className="text-3xl sm:text-4xl font-black">How It Works</h2>
-            <p className="text-gray-400 mt-3 text-base sm:text-lg">Get equipment back operational in three simple steps</p>
+            <h2 className="text-3xl sm:text-4xl font-black">{t.landing.howTitle}</h2>
+            <p className="text-gray-400 mt-3 text-base sm:text-lg">{t.landing.howSubtitle}</p>
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-            {HOW_IT_WORKS.map((step, i) => (
+            {([
+              { step: '01', titleKey: 'step1Title', descKey: 'step1Desc' },
+              { step: '02', titleKey: 'step2Title', descKey: 'step2Desc' },
+              { step: '03', titleKey: 'step3Title', descKey: 'step3Desc' },
+            ] as const).map((step, i) => (
               <motion.div
                 key={step.step}
                 initial={{ opacity: 0, y: 30 }}
@@ -454,8 +404,8 @@ export default function Landing() {
               >
                 <div className="bg-gray-900/90 backdrop-blur-sm border border-gray-800 rounded-2xl p-6 sm:p-8 text-center">
                   <div className="text-5xl sm:text-6xl font-black text-yellow-400/20 mb-4">{step.step}</div>
-                  <h3 className="text-white font-bold text-lg sm:text-xl mb-3">{step.title}</h3>
-                  <p className="text-gray-400 text-sm sm:text-base leading-relaxed">{step.desc}</p>
+                  <h3 className="text-white font-bold text-lg sm:text-xl mb-3">{t.landing[step.titleKey]}</h3>
+                  <p className="text-gray-400 text-sm sm:text-base leading-relaxed">{t.landing[step.descKey]}</p>
                 </div>
                 {i < 2 && (
                   <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2 z-10">
@@ -480,13 +430,13 @@ export default function Landing() {
           viewport={{ once: true }}
           className="text-center mb-10 sm:mb-12"
         >
-          <h2 className="text-3xl sm:text-4xl font-black">Trusted by Industry Professionals</h2>
+          <h2 className="text-3xl sm:text-4xl font-black">{t.landing.trustedTitle}</h2>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
-          {TESTIMONIALS.map((t, i) => (
+          {TESTIMONIAL_META.map((tm, i) => (
             <motion.div
-              key={t.name}
+              key={tm.name}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
@@ -494,14 +444,14 @@ export default function Landing() {
               className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-6"
             >
               <div className="flex gap-1 mb-4">
-                {Array.from({ length: t.rating }).map((_, j) => (
+                {Array.from({ length: tm.rating }).map((_, j) => (
                   <Star key={j} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                 ))}
               </div>
-              <p className="text-gray-300 text-sm sm:text-base leading-relaxed mb-4">"{t.text}"</p>
+              <p className="text-gray-300 text-sm sm:text-base leading-relaxed mb-4">"{t.landing[tm.textKey]}"</p>
               <div>
-                <p className="text-white font-semibold">{t.name}</p>
-                <p className="text-gray-500 text-sm">{t.role} · {t.company}</p>
+                <p className="text-white font-semibold">{tm.name}</p>
+                <p className="text-gray-500 text-sm">{tm.role} · {tm.company}</p>
               </div>
             </motion.div>
           ))}
@@ -517,21 +467,21 @@ export default function Landing() {
           >
             {user ? (
               <>
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4">Welcome Back{profile?.name ? `, ${profile.name.split(' ')[0]}` : ''}!</h2>
-                <p className="text-gray-300 text-base sm:text-lg mb-8">Head to your dashboard or jump straight into the marketplace</p>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4">{t.landing.welcomeBack}{profile?.name ? `, ${profile.name.split(' ')[0]}` : ''}!</h2>
+                <p className="text-gray-300 text-base sm:text-lg mb-8">{t.landing.welcomeSubtitle}</p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Link
                     to="/dashboard"
                     className="flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
                   >
-                    <LayoutDashboard className="w-5 h-5" /> Go to Dashboard
+                    <LayoutDashboard className="w-5 h-5" /> {t.landing.goToDashboard}
                   </Link>
                   {(profile?.role === 'supplier') && (
                     <Link
                       to="/listings/new-part"
                       className="flex items-center justify-center gap-2 border border-gray-600 hover:border-yellow-400 text-white hover:text-yellow-400 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
                     >
-                      <PlusCircle className="w-5 h-5" /> List a Part
+                      <PlusCircle className="w-5 h-5" /> {t.landing.listPart}
                     </Link>
                   )}
                   {(profile?.role === 'rental_provider') && (
@@ -539,7 +489,7 @@ export default function Landing() {
                       to="/listings/new-rental"
                       className="flex items-center justify-center gap-2 border border-gray-600 hover:border-yellow-400 text-white hover:text-yellow-400 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
                     >
-                      <PlusCircle className="w-5 h-5" /> List Equipment
+                      <PlusCircle className="w-5 h-5" /> {t.landing.listEquipment}
                     </Link>
                   )}
                   {(profile?.role !== 'supplier' && profile?.role !== 'rental_provider') && (
@@ -547,27 +497,27 @@ export default function Landing() {
                       to="/search"
                       className="flex items-center justify-center gap-2 border border-gray-600 hover:border-yellow-400 text-white hover:text-yellow-400 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
                     >
-                      Browse Marketplace <ArrowRight className="w-5 h-5" />
+                      {t.landing.browseMarketplace} <ArrowRight className="w-5 h-5" />
                     </Link>
                   )}
                 </div>
               </>
             ) : (
               <>
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4">Ready to Get Started?</h2>
-                <p className="text-gray-300 text-base sm:text-lg mb-8">Join thousands of contractors and service professionals on EquipLink</p>
+                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4">{t.landing.ctaTitle}</h2>
+                <p className="text-gray-300 text-base sm:text-lg mb-8">{t.landing.ctaSubtitle}</p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Link
                     to="/register"
                     className="flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
                   >
-                    <Users className="w-5 h-5" /> Create Free Account
+                    <Users className="w-5 h-5" /> {t.landing.createFreeAccount}
                   </Link>
                   <Link
                     to="/search"
                     className="flex items-center justify-center gap-2 border border-gray-600 hover:border-yellow-400 text-white hover:text-yellow-400 font-bold text-base sm:text-lg px-6 sm:px-8 py-3.5 sm:py-4 rounded-xl transition-all"
                   >
-                    Browse Marketplace <ArrowRight className="w-5 h-5" />
+                    {t.landing.browseMarketplace} <ArrowRight className="w-5 h-5" />
                   </Link>
                 </div>
               </>
@@ -584,8 +534,8 @@ export default function Landing() {
                 <Shield className="w-5 h-5 text-yellow-400" />
               </div>
               <div>
-                <h4 className="text-white font-semibold mb-1">Verified Professionals</h4>
-                <p className="text-gray-400 text-sm">All mechanics and suppliers are verified and reviewed by the community.</p>
+                <h4 className="text-white font-semibold mb-1">{t.landing.trust1Title}</h4>
+                <p className="text-gray-400 text-sm">{t.landing.trust1Desc}</p>
               </div>
             </div>
             <div className="flex items-start gap-4">
@@ -593,8 +543,8 @@ export default function Landing() {
                 <MessageSquare className="w-5 h-5 text-orange-400" />
               </div>
               <div>
-                <h4 className="text-white font-semibold mb-1">Direct Communication</h4>
-                <p className="text-gray-400 text-sm">Built-in messaging to connect with service providers without leaving the platform.</p>
+                <h4 className="text-white font-semibold mb-1">{t.landing.trust2Title}</h4>
+                <p className="text-gray-400 text-sm">{t.landing.trust2Desc}</p>
               </div>
             </div>
             <div className="flex items-start gap-4">
@@ -602,8 +552,8 @@ export default function Landing() {
                 <Award className="w-5 h-5 text-blue-400" />
               </div>
               <div>
-                <h4 className="text-white font-semibold mb-1">Rated & Reviewed</h4>
-                <p className="text-gray-400 text-sm">Transparent ratings help you choose the best professional for your equipment.</p>
+                <h4 className="text-white font-semibold mb-1">{t.landing.trust3Title}</h4>
+                <p className="text-gray-400 text-sm">{t.landing.trust3Desc}</p>
               </div>
             </div>
           </div>

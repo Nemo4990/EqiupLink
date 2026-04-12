@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { LanguageProvider } from './lib/i18n/LanguageContext';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import ProtectedRoute from './components/ui/ProtectedRoute';
@@ -179,6 +180,7 @@ function AppContent() {
 export default function App() {
   return (
     <BrowserRouter>
+      <LanguageProvider>
       <AuthProvider>
         <Toaster
           position="top-right"
@@ -193,6 +195,7 @@ export default function App() {
         />
         <AppContent />
       </AuthProvider>
+      </LanguageProvider>
     </BrowserRouter>
   );
 }
