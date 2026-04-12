@@ -6,13 +6,14 @@ import {
   Pencil, X, Save, Mail, Phone, MapPin, Globe, TrendingUp, Crown,
   Wallet, PercentSquare, Settings, FileText, Search, BadgeCheck,
   ShieldAlert, Star, Wrench, ChevronRight, Eye, EyeOff, RefreshCw,
-  Zap, Calendar, ToggleLeft, ToggleRight, Gift
+  Zap, Calendar, ToggleLeft, ToggleRight, Gift, Database
 } from 'lucide-react';
 import { invalidatePromoCache } from '../../lib/promoMode';
 import { supabase } from '../../lib/supabase';
 import { Profile, BreakdownRequest, UserPayment, PaymentMethod, Commission, Subscription, SubscriptionPlan, PlatformSetting, SupplierDocument } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import AdminListings from './AdminListings';
+import DemoData from './DemoData';
 import { format, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
@@ -20,6 +21,7 @@ import { useAuth } from '../../contexts/AuthContext';
 type AdminTab =
   | 'overview'
   | 'promo'
+  | 'demo_data'
   | 'verification'
   | 'trade_licenses'
   | 'users'
@@ -625,6 +627,7 @@ export default function Admin() {
   const TABS: { id: AdminTab; label: string; icon: React.FC<{ className?: string }>; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'promo', label: 'Promo Period', icon: Gift },
+    { id: 'demo_data', label: 'Demo Data', icon: Database },
     { id: 'verification', label: 'Verify Mechanics', icon: BadgeCheck, badge: stats.pendingVerification },
     { id: 'trade_licenses', label: 'Trade Licenses', icon: FileText, badge: supplierDocs.filter(d => d.status === 'pending').length },
     { id: 'users', label: 'Users', icon: Users },
@@ -1721,6 +1724,11 @@ export default function Admin() {
                     {savingPromo ? 'Saving...' : `Save — Activate ${promoConfig.monetizationMode === 'promo' ? 'Free Promo' : 'Paid'} Mode`}
                   </button>
                 </div>
+              )}
+
+              {/* ===== DEMO DATA ===== */}
+              {tab === 'demo_data' && (
+                <DemoData />
               )}
 
               {/* ===== LEGAL ===== */}
