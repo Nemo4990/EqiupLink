@@ -30,7 +30,10 @@ class LoginActivity : AppCompatActivity() {
 
         authViewModel.authState.observe(this) { state ->
             Toast.makeText(this, state, Toast.LENGTH_SHORT).show()
-            if (state.startsWith("Supabase login placeholder")) {
+        }
+
+        authViewModel.isAuthenticated.observe(this) { isAuthenticated ->
+            if (isAuthenticated) {
                 startActivity(Intent(this, HomeActivity::class.java))
                 finish()
             }
