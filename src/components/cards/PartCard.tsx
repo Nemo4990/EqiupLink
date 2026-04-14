@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Package, Tag, Layers, Award, ChevronLeft, ChevronRight, Phone, MessageSquare } from 'lucide-react';
+import { Package, Tag, Layers, Award, ChevronLeft, ChevronRight, Phone, MessageSquare, Lock, User, LogIn } from 'lucide-react';
 import { PartsListing } from '../../types';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Props {
   part: PartsListing;
@@ -26,7 +27,9 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export default function PartCard({ part }: Props) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [imageIndex, setImageIndex] = useState(0);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const images: string[] = part.image_urls?.length
     ? part.image_urls
@@ -152,19 +155,107 @@ export default function PartCard({ part }: Props) {
 
         <div className="mt-4 grid grid-cols-2 gap-2">
           <button
-            onClick={() => navigate(`/supplier/${part.supplier_id}/contact`)}
+            onClick={() => {
+              if (!user) {
+                setShowAuthModal(true);
+              } else {
+                navigate(`/supplier/${part.supplier_id}/contact`);
+              }
+            }}
             className="flex items-center justify-center gap-1.5 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-semibold text-sm py-2.5 rounded-xl transition-colors"
           >
             <Phone className="w-4 h-4" /> Contact
           </button>
           <button
-            onClick={() => navigate(`/messages?user=${part.supplier_id}`)}
+            onClick={() => {
+              if (!user) {
+                setShowAuthModal(true);
+              } else {
+                navigate(`/messages?user=${part.supplier_id}`);
+              }
+            }}
             className="flex items-center justify-center gap-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-700 hover:border-gray-500 text-gray-300 font-semibold text-sm py-2.5 rounded-xl transition-colors"
           >
             <MessageSquare className="w-4 h-4" /> Chat
           </button>
         </div>
       </div>
+
+      {showAuthModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          onClick={() => setShowAuthModal(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="bg-gray-900 border border-gray-800 rounded-2xl p-8 max-w-sm w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center mb-4">
+              <div className="bg-yellow-400/20 p-4 rounded-full">
+                <Lock className="w-8 h-8 text-yellow-400" />
+              </div>
+            </div>
+
+            <h3 className="text-xl font-bold text-white text-center mb-2">
+              Unlock Supplier Contact
+            </h3>
+            <p className="text-gray-400 text-center mb-6 leading-relaxed">
+              Sign in or create a free account to contact suppliers, send messages, and access exclusive features.
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-1">
+                  <div className="flex items-center justify-center h-6 w-6 rounded-full bg-yellow-400/20 text-yellow-400 text-sm font-bold">✓</div>
+                </div>
+                <p className="text-sm text-gray-300">Get instant access to supplier contact details</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-1">
+                  <div className="flex items-center justify-center h-6 w-6 rounded-full bg-yellow-400/20 text-yellow-400 text-sm font-bold">✓</div>
+                </div>
+                <p className="text-sm text-gray-300">Chat directly with suppliers and mechanics</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-1">
+                  <div className="flex items-center justify-center h-6 w-6 rounded-full bg-yellow-400/20 text-yellow-400 text-sm font-bold">✓</div>
+                </div>
+                <p className="text-sm text-gray-300">Free account creation - no fees</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => navigate('/register')}
+                className="flex items-center justify-center gap-2 bg-yellow-400 hover:bg-yellow-300 text-gray-900 font-semibold py-3 rounded-xl transition-colors"
+              >
+                <User className="w-4 h-4" />
+                <span>Sign Up</span>
+              </button>
+              <button
+                onClick={() => navigate('/login')}
+                className="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white font-semibold py-3 rounded-xl transition-colors"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Login</span>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowAuthModal(false)}
+              className="w-full mt-3 text-gray-400 hover:text-gray-300 text-sm font-medium transition-colors"
+            >
+              Continue browsing
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
     </motion.div>
   );
 }
