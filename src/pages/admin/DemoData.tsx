@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Database, Wrench, Package, Truck, ToggleLeft, ToggleRight,
-  RefreshCw, Eye, EyeOff, Users, CheckCircle, XCircle, AlertCircle, Trash2
+  RefreshCw, Eye, EyeOff, Users, CheckCircle, XCircle, AlertCircle, Trash2,
+  Upload, Image as ImageIcon, Link as LinkIcon, X
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -45,7 +46,17 @@ interface DemoRental {
   provider_name: string;
 }
 
-type DemoView = 'overview' | 'mechanics' | 'parts' | 'rentals';
+interface DemoPartListing {
+  id: string;
+  part_name: string;
+  supplier_name: string;
+  price: number;
+  stock_quantity: number;
+  image_urls: string[];
+  is_active: boolean;
+}
+
+type DemoView = 'overview' | 'mechanics' | 'parts' | 'rentals' | 'photos';
 
 export default function DemoData() {
   const [demoEnabled, setDemoEnabled] = useState(true);
@@ -53,9 +64,12 @@ export default function DemoData() {
   const [mechanics, setMechanics] = useState<DemoMechanic[]>([]);
   const [parts, setParts] = useState<DemoPart[]>([]);
   const [rentals, setRentals] = useState<DemoRental[]>([]);
+  const [partListings, setPartListings] = useState<DemoPartListing[]>([]);
   const [view, setView] = useState<DemoView>('overview');
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
+  const [photoUrls, setPhotoUrls] = useState<string>('');
+  const [selectedListingId, setSelectedListingId] = useState<string>('');
 
   const fetchDemoConfig = useCallback(async () => {
     const { data } = await supabase
@@ -121,6 +135,26 @@ export default function DemoData() {
     }
   }, []);
 
+  const fetchPartListings = useCallback(async () => {
+    const { data } = await supabase
+      .from('parts_listings')
+      .select('id, part_name, price, stock_quantity, is_active, image_urls, profiles(name)')
+      .eq('is_demo', true)
+      .order('part_name')
+      .limit(50);
+    if (data) {
+      setPartListings(data.map((p: any) => ({
+        id: p.id,
+        part_name: p.part_name,
+        supplier_name: p.profiles?.name ?? '—',
+        price: p.price,
+        stock_quantity: p.stock_quantity,
+        image_urls: p.image_urls || [],
+        is_active: p.is_active,
+      })));
+    }
+  }, []);
+
   const fetchRentals = useCallback(async () => {
     const { data } = await supabase
       .from('equipment_rentals')
@@ -144,10 +178,10 @@ export default function DemoData() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      await Promise.all([fetchDemoConfig(), fetchStats(), fetchMechanics(), fetchParts(), fetchRentals()]);
+      await Promise.all([fetchDemoConfig(), fetchStats(), fetchMechanics(), fetchParts(), fetchRentals(), fetchPartListings()]);
       setLoading(false);
     })();
-  }, [fetchDemoConfig, fetchStats, fetchMechanics, fetchParts, fetchRentals]);
+  }, [fetchDemoConfig, fetchStats, fetchMechanics, fetchParts, fetchRentals, fetchPartListings]);
 
   const toggleDemoMode = async () => {
     setToggling(true);
@@ -202,6 +236,56 @@ export default function DemoData() {
     }
   };
 
+  const addPhotoUrl = async () => {
+    if (!selectedListingId || !photoUrls.trim()) {
+      toast.error('Please select a listing and enter a photo URL');
+      return;
+    }
+
+    const urlsToAdd = photoUrls
+      .split('\n')
+      .map((u: string) => u.trim())
+      .filter((u: string) => u.length > 0);
+
+    const listing = partListings.find(p => p.id === selectedListingId);
+    if (!listing) return;
+
+    const updatedUrls = [...(listing.image_urls || []), ...urlsToAdd];
+
+    const { error } = await supabase
+      .from('parts_listings')
+      .update({ image_urls: updatedUrls })
+      .eq('id', selectedListingId);
+
+    if (error) {
+      toast.error('Failed to add photos');
+    } else {
+      toast.success(`Added ${urlsToAdd.length} photo URL(s)`);
+      setPhotoUrls('');
+      setSelectedListingId('');
+      fetchPartListings();
+    }
+  };
+
+  const removePhotoUrl = async (listingId: string, urlToRemove: string) => {
+    const listing = partListings.find(p => p.id === listingId);
+    if (!listing) return;
+
+    const updatedUrls = (listing.image_urls || []).filter(u => u !== urlToRemove);
+
+    const { error } = await supabase
+      .from('parts_listings')
+      .update({ image_urls: updatedUrls })
+      .eq('id', listingId);
+
+    if (error) {
+      toast.error('Failed to remove photo');
+    } else {
+      toast.success('Photo removed');
+      fetchPartListings();
+    }
+  };
+
   const statCards = [
     { label: 'Demo Mechanics', value: stats.mechanics, icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Demo Suppliers', value: stats.suppliers, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -215,6 +299,7 @@ export default function DemoData() {
     { key: 'mechanics', label: `Mechanics (${stats.mechanics})` },
     { key: 'parts', label: `Parts (${stats.parts})` },
     { key: 'rentals', label: `Rentals (${stats.rentals})` },
+    { key: 'photos', label: 'Photo Management' },
   ];
 
   if (loading) {
@@ -472,6 +557,114 @@ export default function DemoData() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Photo Management */}
+      {view === 'photos' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Upload className="w-5 h-5 text-slate-600" />
+              <h3 className="font-semibold text-slate-800">Add Photo URLs to Demo Listings</h3>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Select Listing</label>
+                <select
+                  value={selectedListingId}
+                  onChange={(e) => setSelectedListingId(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">Choose a parts listing...</option>
+                  {partListings.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.part_name} - {p.supplier_name} (ETB {p.price.toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Photo URLs (one per line)</label>
+                <textarea
+                  value={photoUrls}
+                  onChange={(e) => setPhotoUrls(e.target.value)}
+                  placeholder="Paste Pexels or other image URLs here (one per line)&#10;Example: https://images.pexels.com/photos/..."
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-blue-500 font-mono text-sm"
+                  rows={4}
+                />
+                <p className="text-xs text-slate-500 mt-1">Recommended: Use Pexels.com for free, high-quality photos</p>
+              </div>
+
+              <button
+                onClick={addPhotoUrl}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                Add Photo URLs
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" />
+                Listing Photos
+              </h3>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {partListings.map(p => (
+                <div key={p.id} className="p-6 hover:bg-slate-50/50">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="font-medium text-slate-800">{p.part_name}</p>
+                      <p className="text-xs text-slate-500">{p.supplier_name}</p>
+                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      p.is_active
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {p.image_urls?.length || 0} photos
+                    </span>
+                  </div>
+
+                  {p.image_urls && p.image_urls.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {p.image_urls.map((url, idx) => (
+                        <div key={idx} className="relative group">
+                          <img
+                            src={url}
+                            alt={`${p.part_name} ${idx + 1}`}
+                            className="w-full h-24 object-cover rounded-lg border border-slate-200"
+                          />
+                          <button
+                            onClick={() => removePhotoUrl(p.id, url)}
+                            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity bg-red-600 hover:bg-red-700 text-white p-1 rounded-lg"
+                            title="Remove photo"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                          <div className="absolute bottom-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-black/50 text-white px-2 py-1 rounded">
+                            Photo {idx + 1}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-slate-500 text-sm py-4 px-3 bg-slate-50 rounded-lg">
+                      <LinkIcon className="w-4 h-4" />
+                      No photos yet
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </motion.div>
       )}
