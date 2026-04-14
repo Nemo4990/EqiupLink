@@ -246,6 +246,63 @@ export default function DemoData() {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.currentTarget.files;
+    if (!files || !selectedListingId) {
+      toast.error('Please select a listing first');
+      return;
+    }
+
+    const listing = partListings.find(p => p.id === selectedListingId);
+    if (!listing) return;
+
+    try {
+      const newUrls: string[] = [];
+
+      for (const file of Array.from(files)) {
+        const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${file.name.split('.').pop()}`;
+        const filePath = `demo-listings/${listing.id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('listing-photos')
+          .upload(filePath, file);
+
+        if (uploadError) {
+          toast.error(`Failed to upload ${file.name}`);
+          continue;
+        }
+
+        const { data } = supabase.storage
+          .from('listing-photos')
+          .getPublicUrl(filePath);
+
+        if (data?.publicUrl) {
+          newUrls.push(data.publicUrl);
+        }
+      }
+
+      if (newUrls.length === 0) return;
+
+      const updatedUrls = [...(listing.image_urls || []), ...newUrls];
+
+      const { error } = await supabase
+        .from('parts_listings')
+        .update({ image_urls: updatedUrls })
+        .eq('id', selectedListingId);
+
+      if (error) {
+        toast.error('Failed to save photo references');
+      } else {
+        toast.success(`Added ${newUrls.length} photo(s)`);
+        setPhotoUrls('');
+        e.currentTarget.value = '';
+        fetchPartListings();
+      }
+    } catch (err) {
+      toast.error('Error uploading photos');
+    }
+  };
+
   const addPhotoUrl = async () => {
     if (!selectedListingId || !photoUrls.trim()) {
       toast.error('Please select a listing and enter a photo URL');
@@ -645,8 +702,27 @@ export default function DemoData() {
                 </select>
               </div>
 
+              <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    disabled={!selectedListingId}
+                    className="hidden"
+                  />
+                  <div className="flex flex-col items-center gap-2">
+                    <ImageIcon className="w-8 h-8 text-slate-400" />
+                    <p className="text-sm font-medium text-slate-700">Upload Real Photos</p>
+                    <p className="text-xs text-slate-500">Click to select multiple images</p>
+                    <p className="text-xs text-slate-400 mt-1">Supports JPG, PNG, WebP, GIF</p>
+                  </div>
+                </label>
+              </div>
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Photo URLs (one per line)</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Or Paste Photo URLs (one per line)</label>
                 <textarea
                   value={photoUrls}
                   onChange={(e) => setPhotoUrls(e.target.value)}
@@ -659,7 +735,8 @@ export default function DemoData() {
 
               <button
                 onClick={addPhotoUrl}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition-colors"
+                disabled={!selectedListingId || !photoUrls.trim()}
+                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-lg transition-colors"
               >
                 <Upload className="w-4 h-4" />
                 Add Photo URLs
