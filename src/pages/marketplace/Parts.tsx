@@ -181,61 +181,74 @@ export default function Parts() {
             </motion.div>
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between pt-8 border-t border-gray-800">
-                <button
-                  onClick={() => {
-                    if (currentPage > 1) {
-                      setCurrentPage(currentPage - 1);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
-                  }}
-                  disabled={currentPage === 1}
-                  className={`flex items-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
-                    currentPage === 1
-                      ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                      : 'bg-gray-800 hover:bg-gray-700 text-white'
-                  }`}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  <span className="hidden sm:inline">Previous</span>
-                </button>
-
-                <div className="flex items-center gap-2">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => {
-                        setCurrentPage(page);
+              <div className="pt-8 border-t border-gray-800">
+                <div className="flex items-center justify-center gap-1 md:gap-2 flex-wrap">
+                  <button
+                    onClick={() => {
+                      if (currentPage > 1) {
+                        setCurrentPage(currentPage - 1);
                         window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      className={`w-10 h-10 rounded-lg font-semibold transition-all ${
-                        page === currentPage
-                          ? 'bg-yellow-400 text-gray-900'
-                          : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                </div>
+                      }
+                    }}
+                    disabled={currentPage === 1}
+                    className={`flex items-center gap-1 px-2 md:px-4 py-2 md:py-3 rounded-lg md:rounded-xl font-semibold text-xs md:text-base transition-all ${
+                      currentPage === 1
+                        ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                        : 'bg-gray-800 hover:bg-gray-700 text-white'
+                    }`}
+                  >
+                    <ChevronLeft className="w-3 h-3 md:w-4 md:h-4" />
+                    <span className="hidden sm:inline">Prev</span>
+                  </button>
 
-                <button
-                  onClick={() => {
-                    if (currentPage < totalPages) {
-                      setCurrentPage(currentPage + 1);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
-                  }}
-                  disabled={currentPage === totalPages}
-                  className={`flex items-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
-                    currentPage === totalPages
-                      ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                      : 'bg-gray-800 hover:bg-gray-700 text-white'
-                  }`}
-                >
-                  <span className="hidden sm:inline">Next</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+                  <div className="flex items-center gap-1 md:gap-2">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter((page) => {
+                        if (totalPages <= 5) return true;
+                        if (page === 1 || page === totalPages) return true;
+                        if (page >= currentPage - 1 && page <= currentPage + 1) return true;
+                        return false;
+                      })
+                      .map((page, idx, arr) => (
+                        <div key={page}>
+                          {idx > 0 && arr[idx - 1] !== page - 1 && (
+                            <span className="text-gray-500 px-0.5 md:px-1 text-xs md:text-sm">...</span>
+                          )}
+                          <button
+                            onClick={() => {
+                              setCurrentPage(page);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className={`w-8 h-8 md:w-10 md:h-10 text-xs md:text-base rounded-lg md:rounded-lg font-semibold transition-all ${
+                              page === currentPage
+                                ? 'bg-yellow-400 text-gray-900'
+                                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (currentPage < totalPages) {
+                        setCurrentPage(currentPage + 1);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }}
+                    disabled={currentPage === totalPages}
+                    className={`flex items-center gap-1 px-2 md:px-4 py-2 md:py-3 rounded-lg md:rounded-xl font-semibold text-xs md:text-base transition-all ${
+                      currentPage === totalPages
+                        ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                        : 'bg-gray-800 hover:bg-gray-700 text-white'
+                    }`}
+                  >
+                    <span className="hidden sm:inline">Next</span>
+                    <ChevronRight className="w-3 h-3 md:w-4 md:h-4" />
+                  </button>
+                </div>
               </div>
             )}
           </>
