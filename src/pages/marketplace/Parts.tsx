@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Package, SlidersHorizontal, X } from 'lucide-react';
+import { Search, Package, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { PartsListing } from '../../types';
 import PartCard from '../../components/cards/PartCard';
@@ -8,18 +8,21 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 
 const CATEGORIES = ['hydraulics', 'engine', 'electrical', 'filters', 'sensors', 'valves', 'transmission', 'undercarriage', 'other'];
 const MACHINES = ['Caterpillar D8R', 'Caterpillar M320D2', 'Komatsu PC360', 'John Deere 850K', 'Volvo EC380', 'Hitachi ZX350'];
+const ITEMS_PER_PAGE = 12;
 
 export default function Parts() {
-  const [parts, setParts] = useState<PartsListing[]>([]);
+  const [allParts, setAllParts] = useState<PartsListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [machine, setMachine] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchParts = async () => {
     setLoading(true);
+    setCurrentPage(1);
     let query = supabase
       .from('parts_listings')
       .select('*, supplier:profiles!parts_listings_supplier_id_fkey(name, phone, location, merchant_badge, contact_phone, contact_email, contact_address, contact_telegram, contact_whatsapp)')
@@ -42,11 +45,14 @@ export default function Parts() {
       );
     }
 
-    setParts(results);
+    setAllParts(results);
     setLoading(false);
   };
 
   useEffect(() => { fetchParts(); }, [category, machine, maxPrice]);
+
+  const parts = allParts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(allParts.length / ITEMS_PER_PAGE);
 
   const clearFilters = () => {
     setCategory('');
@@ -150,7 +156,7 @@ export default function Parts() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loading ? (
           <div className="flex justify-center py-20"><LoadingSpinner size="lg" text="Loading parts..." /></div>
-        ) : parts.length === 0 ? (
+        ) : allParts.length === 0 ? (
           <div className="text-center py-20">
             <Package className="w-16 h-16 text-gray-700 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-white mb-2">No parts found</h3>
@@ -158,14 +164,80 @@ export default function Parts() {
           </div>
         ) : (
           <>
-            <p className="text-gray-400 text-sm mb-5">{parts.length} part{parts.length !== 1 ? 's' : ''} available</p>
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-gray-400 text-sm">
+                Showing <span className="text-white font-semibold">{(currentPage - 1) * ITEMS_PER_PAGE + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, allParts.length)}</span> of <span className="text-white font-semibold">{allParts.length}</span> part{allParts.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+              key={currentPage}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 mb-8"
             >
               {parts.map((p) => <PartCard key={p.id} part={p} />)}
             </motion.div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-8 border-t border-gray-800">
+                <button
+                  onClick={() => {
+                    if (currentPage > 1) {
+                      setCurrentPage(currentPage - 1);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  disabled={currentPage === 1}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
+                    currentPage === 1
+                      ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                      : 'bg-gray-800 hover:bg-gray-700 text-white'
+                  }`}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline">Previous</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => {
+                        setCurrentPage(page);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className={`w-10 h-10 rounded-lg font-semibold transition-all ${
+                        page === currentPage
+                          ? 'bg-yellow-400 text-gray-900'
+                          : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => {
+                    if (currentPage < totalPages) {
+                      setCurrentPage(currentPage + 1);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  disabled={currentPage === totalPages}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
+                    currentPage === totalPages
+                      ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                      : 'bg-gray-800 hover:bg-gray-700 text-white'
+                  }`}
+                >
+                  <span className="hidden sm:inline">Next</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
