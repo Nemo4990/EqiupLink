@@ -4,4 +4,12 @@
     <string name="title_activity_main">EquipLink</string>
     <string name="package_name">com.equiplink.app</string>
     <string name="custom_url_scheme">com.equiplink.app</string>
+    <string name="login_title">Login to EquipLink</string>
+    <string name="email_hint">Email</string>
+    <string name="password_hint">Password</string>
+    <string name="login_button">Sign In</string>
+    <string name="home_motto">Equipment linking, sharing, and management.</string>
+    <string name="open_camera">Open Camera</string>
+    <string name="logout">Logout</string>
+    <string name="take_picture">Take Picture</string>
 </resources>
