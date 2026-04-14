@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import {
-  Database, Wrench, Package, Truck, ToggleLeft, ToggleRight,
-  RefreshCw, Eye, EyeOff, Users, CheckCircle, XCircle, AlertCircle, Trash2,
-  Upload, Image as ImageIcon, Link as LinkIcon, X
-} from 'lucide-react';
+import { Database, Wrench, Package, Truck, ToggleLeft, ToggleRight, RefreshCw, Eye, EyeOff, Users, CheckCircle, XCircle, AlertCircle, Trash2, Upload, Image as ImageIcon, Link as LinkIcon, X, CreditCard as Edit2, Save, XCircle as CancelIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -20,6 +16,7 @@ interface DemoMechanic {
   id: string;
   name: string;
   location: string;
+  contact_address: string;
   is_verified: boolean;
   is_available: boolean;
   rating: number;
@@ -29,10 +26,12 @@ interface DemoMechanic {
 interface DemoPart {
   id: string;
   part_name: string;
+  part_number: string;
   category: string;
   price: number;
   stock_quantity: number;
   supplier_name: string;
+  supplier_contact_address: string;
 }
 
 interface DemoRental {
@@ -49,7 +48,10 @@ interface DemoRental {
 interface DemoPartListing {
   id: string;
   part_name: string;
+  part_number: string;
   supplier_name: string;
+  supplier_id: string;
+  supplier_contact_address: string;
   price: number;
   stock_quantity: number;
   image_urls: string[];
@@ -70,6 +72,8 @@ export default function DemoData() {
   const [toggling, setToggling] = useState(false);
   const [photoUrls, setPhotoUrls] = useState<string>('');
   const [selectedListingId, setSelectedListingId] = useState<string>('');
+  const [editingMechanicId, setEditingMechanicId] = useState<string>('');
+  const [editingAddress, setEditingAddress] = useState<string>('');
 
   const fetchDemoConfig = useCallback(async () => {
     const { data } = await supabase
@@ -100,7 +104,7 @@ export default function DemoData() {
   const fetchMechanics = useCallback(async () => {
     const { data } = await supabase
       .from('profiles')
-      .select('id, name, location, is_verified, mechanic_profiles(is_available, rating, specializations)')
+      .select('id, name, location, contact_address, is_verified, mechanic_profiles(is_available, rating, specializations)')
       .eq('is_demo', true)
       .eq('role', 'mechanic')
       .order('name');
@@ -109,6 +113,7 @@ export default function DemoData() {
         id: p.id,
         name: p.name,
         location: p.location,
+        contact_address: p.contact_address || '',
         is_verified: p.is_verified,
         is_available: p.mechanic_profiles?.[0]?.is_available ?? false,
         rating: p.mechanic_profiles?.[0]?.rating ?? 0,
@@ -120,17 +125,19 @@ export default function DemoData() {
   const fetchParts = useCallback(async () => {
     const { data } = await supabase
       .from('parts_listings')
-      .select('id, part_name, category, price, stock_quantity, profiles(name)')
+      .select('id, part_name, part_number, category, price, stock_quantity, profiles(name, contact_address)')
       .eq('is_demo', true)
       .order('part_name');
     if (data) {
       setParts(data.map((p: any) => ({
         id: p.id,
         part_name: p.part_name,
+        part_number: p.part_number || '—',
         category: p.category,
         price: p.price,
         stock_quantity: p.stock_quantity,
         supplier_name: p.profiles?.name ?? '—',
+        supplier_contact_address: p.profiles?.contact_address || '—',
       })));
     }
   }, []);
@@ -138,15 +145,18 @@ export default function DemoData() {
   const fetchPartListings = useCallback(async () => {
     const { data } = await supabase
       .from('parts_listings')
-      .select('id, part_name, price, stock_quantity, is_active, image_urls, profiles(name)')
+      .select('id, supplier_id, part_name, part_number, price, stock_quantity, is_active, image_urls, profiles(name, contact_address)')
       .eq('is_demo', true)
       .order('part_name')
-      .limit(50);
+      .limit(100);
     if (data) {
       setPartListings(data.map((p: any) => ({
         id: p.id,
+        supplier_id: p.supplier_id,
         part_name: p.part_name,
+        part_number: p.part_number || '—',
         supplier_name: p.profiles?.name ?? '—',
+        supplier_contact_address: p.profiles?.contact_address || '—',
         price: p.price,
         stock_quantity: p.stock_quantity,
         image_urls: p.image_urls || [],
@@ -286,6 +296,27 @@ export default function DemoData() {
     }
   };
 
+  const updateMechanicAddress = async (mechanicId: string, newAddress: string) => {
+    if (!newAddress.trim()) {
+      toast.error('Address cannot be empty');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ contact_address: newAddress })
+      .eq('id', mechanicId);
+
+    if (error) {
+      toast.error('Failed to update address');
+    } else {
+      toast.success('Address updated');
+      setMechanics(prev => prev.map(m => m.id === mechanicId ? { ...m, contact_address: newAddress } : m));
+      setEditingMechanicId('');
+      setEditingAddress('');
+    }
+  };
+
   const statCards = [
     { label: 'Demo Mechanics', value: stats.mechanics, icon: Wrench, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Demo Suppliers', value: stats.suppliers, icon: Users, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -422,42 +453,65 @@ export default function DemoData() {
                 <tr className="bg-slate-50 border-b border-slate-100">
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Name</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Location</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Contact Address</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Specializations</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Rating</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Verified</th>
-                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Available</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {mechanics.map(m => (
                   <tr key={m.id} className="hover:bg-slate-50/60">
                     <td className="px-4 py-3 font-medium text-slate-800">{m.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{m.location}</td>
+                    <td className="px-4 py-3 text-slate-600 text-sm">{m.location}</td>
+                    <td className="px-4 py-3">
+                      {editingMechanicId === m.id ? (
+                        <div className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={editingAddress}
+                            onChange={(e) => setEditingAddress(e.target.value)}
+                            className="flex-1 px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:border-blue-500"
+                            placeholder="Enter address"
+                          />
+                          <button
+                            onClick={() => updateMechanicAddress(m.id, editingAddress)}
+                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setEditingMechanicId('')}
+                            className="p-1 text-slate-400 hover:bg-slate-100 rounded"
+                          >
+                            <CancelIcon className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div
+                          className="group flex items-center gap-2 cursor-pointer text-slate-700 text-xs hover:bg-slate-50 px-2 py-1 rounded"
+                          onClick={() => {
+                            setEditingMechanicId(m.id);
+                            setEditingAddress(m.contact_address);
+                          }}
+                        >
+                          <span className="flex-1 truncate">{m.contact_address || '—'}</span>
+                          <Edit2 className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {m.specializations.slice(0, 3).map(s => (
+                        {m.specializations.slice(0, 2).map(s => (
                           <span key={s} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs capitalize">{s}</span>
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-700 font-medium">{m.rating.toFixed(1)} ★</td>
+                    <td className="px-4 py-3 text-slate-700 font-medium text-sm">{m.rating.toFixed(1)} ★</td>
                     <td className="px-4 py-3">
                       {m.is_verified
                         ? <span className="flex items-center gap-1 text-emerald-600 text-xs font-medium"><CheckCircle className="w-3.5 h-3.5" /> Verified</span>
                         : <span className="flex items-center gap-1 text-slate-400 text-xs"><XCircle className="w-3.5 h-3.5" /> Pending</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => toggleMechanicAvailability(m.id, m.is_available)}
-                        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                          m.is_available
-                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                        }`}
-                      >
-                        {m.is_available ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                        {m.is_available ? 'Available' : 'Busy'}
-                      </button>
                     </td>
                   </tr>
                 ))}
@@ -475,7 +529,9 @@ export default function DemoData() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Part Name</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Part Number</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Supplier</th>
+                  <th className="text-left px-4 py-3 font-semibold text-slate-600">Supplier Address</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Category</th>
                   <th className="text-right px-4 py-3 font-semibold text-slate-600">Price (ETB)</th>
                   <th className="text-left px-4 py-3 font-semibold text-slate-600">Stock</th>
@@ -486,7 +542,9 @@ export default function DemoData() {
                 {parts.map(p => (
                   <tr key={p.id} className="hover:bg-slate-50/60">
                     <td className="px-4 py-3 font-medium text-slate-800 max-w-xs truncate">{p.part_name}</td>
-                    <td className="px-4 py-3 text-slate-600 text-xs">{p.supplier_name}</td>
+                    <td className="px-4 py-3 text-slate-600 text-xs font-mono bg-slate-50 rounded px-2 py-1">{p.part_number}</td>
+                    <td className="px-4 py-3 text-slate-700 text-sm font-medium">{p.supplier_name}</td>
+                    <td className="px-4 py-3 text-slate-600 text-xs">{p.supplier_contact_address}</td>
                     <td className="px-4 py-3">
                       <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full text-xs capitalize">{p.category}</span>
                     </td>
@@ -581,7 +639,7 @@ export default function DemoData() {
                   <option value="">Choose a parts listing...</option>
                   {partListings.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.part_name} - {p.supplier_name} (ETB {p.price.toLocaleString()})
+                      {p.part_name} ({p.part_number}) - {p.supplier_name}
                     </option>
                   ))}
                 </select>
@@ -623,7 +681,9 @@ export default function DemoData() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="font-medium text-slate-800">{p.part_name}</p>
-                      <p className="text-xs text-slate-500">{p.supplier_name}</p>
+                      <p className="text-xs text-slate-500 font-mono bg-slate-50 rounded px-1.5 py-0.5 inline-block mb-1">{p.part_number}</p>
+                      <p className="text-xs text-slate-600"><span className="font-medium">Supplier:</span> {p.supplier_name}</p>
+                      <p className="text-xs text-slate-600"><span className="font-medium">Address:</span> {p.supplier_contact_address}</p>
                     </div>
                     <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                       p.is_active
