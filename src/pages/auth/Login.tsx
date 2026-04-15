@@ -245,13 +245,12 @@ export default function Login() {
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="block text-gray-300 text-sm font-medium">{t.auth.password}</label>
-                      <button
-                        type="button"
-                        onClick={() => { setForgotMode(true); setResetEmail(email); }}
+                      <Link
+                        to="/forgot-password"
                         className="text-yellow-400 hover:text-yellow-300 text-xs font-medium transition-colors"
                       >
                         {t.auth.forgotPassword}
-                      </button>
+                      </Link>
                     </div>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />

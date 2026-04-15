@@ -14,6 +14,7 @@ import { Profile, BreakdownRequest, UserPayment, PaymentMethod, Commission, Subs
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import AdminListings from './AdminListings';
 import DemoData from './DemoData';
+import EmailBroadcast from './EmailBroadcast';
 import { format, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
@@ -34,7 +35,8 @@ type AdminTab =
   | 'platform_settings'
   | 'site_stats'
   | 'contact'
-  | 'legal';
+  | 'legal'
+  | 'email_broadcast';
 
 interface MechanicWithProfile {
   id: string;
@@ -628,6 +630,7 @@ export default function Admin() {
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'promo', label: 'Promo Period', icon: Gift },
     { id: 'demo_data', label: 'Demo Data', icon: Database },
+    { id: 'email_broadcast', label: 'Email Broadcast', icon: Mail },
     { id: 'verification', label: 'Verify Mechanics', icon: BadgeCheck, badge: stats.pendingVerification },
     { id: 'trade_licenses', label: 'Trade Licenses', icon: FileText, badge: supplierDocs.filter(d => d.status === 'pending').length },
     { id: 'users', label: 'Users', icon: Users },
@@ -1729,6 +1732,11 @@ export default function Admin() {
               {/* ===== DEMO DATA ===== */}
               {tab === 'demo_data' && (
                 <DemoData />
+              )}
+
+              {/* ===== EMAIL BROADCAST ===== */}
+              {tab === 'email_broadcast' && (
+                <EmailBroadcast />
               )}
 
               {/* ===== LEGAL ===== */}
