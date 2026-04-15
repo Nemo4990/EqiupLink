@@ -13,6 +13,7 @@ export default function ProtectedRoute({ children, requiredRole }: Props) {
 
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (!user.email_confirmed_at) return <Navigate to="/verify-email-sent" replace />;
   if (requiredRole && profile?.role !== requiredRole) return <Navigate to="/dashboard" replace />;
 
   return <>{children}</>;

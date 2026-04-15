@@ -360,8 +360,7 @@ export default function Register() {
           }).catch(() => {});
         }
       }
-      toast.success(t.auth.accountCreated);
-      navigate('/onboarding');
+      navigate('/verify-email-sent', { state: { name, email, userId: data.user?.id, referrerId: referralValid ? referrerId : null }, replace: true });
     }
   };
 
