@@ -15,6 +15,19 @@ interface PasswordResetRequest {
   email: string;
 }
 
+interface ResendResponse {
+  id?: string;
+  from?: string;
+  to?: string;
+  created_at?: string;
+  error?: {
+    message?: string;
+    code?: string;
+  };
+  message?: string;
+  code?: string;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -26,7 +39,7 @@ Deno.serve(async (req: Request) => {
   try {
     const { email } = (await req.json()) as PasswordResetRequest;
 
-    if (!email) {
+    if (!email || !email.trim()) {
       return new Response(JSON.stringify({ error: "Email is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -34,11 +47,22 @@ Deno.serve(async (req: Request) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const resend = new Resend(resendKey);
+
+    if (!resendKey) {
+      console.error("RESEND_API_KEY not configured");
+      return new Response(
+        JSON.stringify({ message: "If that email exists, a reset link will be sent" }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
     const { data: user, error: userError } = await supabase.auth.admin.getUserByEmail(email);
 
     if (userError || !user) {
+      console.log(`User not found for email: ${email}`);
       return new Response(
         JSON.stringify({ message: "If that email exists, a reset link will be sent" }),
         {
@@ -59,10 +83,13 @@ Deno.serve(async (req: Request) => {
         expires_at: expiresAt.toISOString(),
       });
 
-    if (tokenError) throw tokenError;
+    if (tokenError) {
+      console.error("Token creation error:", tokenError);
+      throw tokenError;
+    }
 
-    const appUrl = Deno.env.get("SUPABASE_URL")?.split("/storage").join("") || "";
-    const resetUrl = `${appUrl}/reset-password?token=${token}`;
+    const baseUrl = import.meta.env.VITE_APP_URL || "https://equiplink.com";
+    const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
     const emailHtml = `
 <!DOCTYPE html>
@@ -75,14 +102,14 @@ Deno.serve(async (req: Request) => {
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f9fafb; }
       .container { max-width: 600px; margin: 0 auto; padding: 20px; }
       .card { background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-      .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 20px; text-align: center; color: white; }
+      .header { background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%); padding: 30px 20px; text-align: center; color: white; }
       .header h1 { margin: 0; font-size: 24px; font-weight: 600; }
       .content { padding: 40px 30px; }
       .content p { margin: 0 0 20px 0; font-size: 15px; color: #555; }
-      .button { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 20px 0; }
+      .button { display: inline-block; background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%); color: white; padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 20px 0; }
       .code { background-color: #f3f4f6; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 13px; color: #374151; word-break: break-all; margin: 20px 0; }
       .footer { border-top: 1px solid #e5e7eb; padding: 20px 30px; background-color: #f9fafb; text-align: center; font-size: 12px; color: #6b7280; }
-      .footer a { color: #667eea; text-decoration: none; }
+      .footer a { color: #0066cc; text-decoration: none; }
       .warning { background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px 15px; border-radius: 4px; margin: 20px 0; font-size: 13px; color: #92400e; }
     </style>
   </head>
@@ -103,7 +130,7 @@ Deno.serve(async (req: Request) => {
           <div class="warning">
             <strong>Note:</strong> This link will expire in 1 hour. If you need to reset your password again after it expires, please request a new reset link.
           </div>
-          <p>If you have any questions or concerns, please contact our support team.</p>
+          <p>If you have any questions or concerns, please contact our support team at team@equiplink.org.</p>
           <p>Best regards,<br>The Equiplink Team</p>
         </div>
         <div class="footer">
@@ -116,16 +143,27 @@ Deno.serve(async (req: Request) => {
 </html>
     `;
 
-    const { error: emailError } = await resend.emails.send({
-      from: "team@equiplink.org",
-      to: email,
-      subject: "Reset Your Equiplink Password",
-      html: emailHtml,
-    });
+    try {
+      const resend = new Resend(resendKey);
 
-    if (emailError) {
-      console.error("Resend error:", emailError);
-      throw new Error(`Failed to send email: ${JSON.stringify(emailError)}`);
+      const response = await resend.emails.send({
+        from: "team@equiplink.org",
+        to: email,
+        subject: "Reset Your Equiplink Password",
+        html: emailHtml,
+      }) as unknown as ResendResponse;
+
+      if (response.error || response.code) {
+        console.error("Resend API error:", response.error || response.code);
+        console.error("Full response:", response);
+      } else if (response.id) {
+        console.log(`Email sent successfully: ${response.id}`);
+      }
+    } catch (emailError) {
+      console.error("Email sending exception:", emailError);
+      if (emailError instanceof Error) {
+        console.error("Error message:", emailError.message);
+      }
     }
 
     return new Response(
@@ -138,9 +176,9 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     console.error("Password reset error:", error);
     return new Response(
-      JSON.stringify({ error: "Failed to process request" }),
+      JSON.stringify({ message: "If that email exists, a reset link will be sent" }),
       {
-        status: 500,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
