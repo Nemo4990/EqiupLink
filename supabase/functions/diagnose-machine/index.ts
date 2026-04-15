@@ -61,13 +61,16 @@ Deno.serve(async (req: Request) => {
     let user;
     try {
       const { data, error: authError } = await supabaseClient.auth.getUser(token);
-      if (authError || !data?.user) {
-        console.error("Auth failed:", authError?.message || "No user");
+      if (authError) {
+        console.error("Auth error:", authError.message);
+      }
+      if (!data?.user) {
+        console.error("No user in auth response");
         return errorResponse("Unauthorized", 401);
       }
       user = data.user;
     } catch (e) {
-      console.error("Auth error:", e);
+      console.error("Auth exception:", e instanceof Error ? e.message : String(e));
       return errorResponse("Unauthorized", 401);
     }
 
