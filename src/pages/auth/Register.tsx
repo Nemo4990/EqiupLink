@@ -133,7 +133,10 @@ export default function Register() {
   };
 
   const uploadCVFile = async (file: File) => {
-    if (!file.type.startsWith('application/') && !file.name.endsWith('.pdf') && !file.name.endsWith('.doc') && !file.name.endsWith('.docx')) {
+    const validExtensions = ['pdf', 'doc', 'docx'];
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+
+    if (!validExtensions.includes(ext)) {
       toast.error('Please select a PDF or DOC file');
       return;
     }
@@ -143,15 +146,24 @@ export default function Register() {
     }
     setUploadingCv(true);
     try {
-      const ext = file.name.split('.').pop() || 'pdf';
-      const path = `mechanic-cvs/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from('mechanic-cvs').upload(path, file, { upsert: false });
-      if (error) throw error;
-      const { data } = supabase.storage.from('mechanic-cvs').getPublicUrl(path);
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).slice(2);
+      const path = `mechanic-cvs/${timestamp}_${random}.${ext}`;
+
+      const { error, data: uploadData } = await supabase.storage
+        .from('mechanic-cvs')
+        .upload(path, file);
+
+      if (error) {
+        console.error('Storage error:', error);
+        throw error;
+      }
+
       setCvFile(file);
       toast.success('CV uploaded successfully');
-    } catch {
-      toast.error('Failed to upload CV');
+    } catch (err) {
+      console.error('CV upload failed:', err);
+      toast.error('Failed to upload CV. Please try again.');
     } finally {
       setUploadingCv(false);
     }
@@ -243,11 +255,22 @@ export default function Register() {
       if (userId && role === 'mechanic') {
         let cvUrl = null;
         if (cvFile) {
-          const ext = cvFile.name.split('.').pop() || 'pdf';
-          const path = `mechanic-cvs/${userId}-${Date.now()}.${ext}`;
-          const { data } = await supabase.storage.from('mechanic-cvs').getPublicUrl(path);
-          cvUrl = data.publicUrl;
+          const ext = cvFile.name.split('.').pop()?.toLowerCase() || 'pdf';
+          const timestamp = Date.now();
+          const random = Math.random().toString(36).slice(2);
+          const path = `mechanic-cvs/${userId}-${timestamp}-${random}.${ext}`;
+
+          try {
+            const { error: uploadError } = await supabase.storage.from('mechanic-cvs').upload(path, cvFile);
+            if (!uploadError) {
+              const { data } = supabase.storage.from('mechanic-cvs').getPublicUrl(path);
+              cvUrl = data.publicUrl;
+            }
+          } catch (err) {
+            console.error('CV upload error:', err);
+          }
         }
+
         await supabase.from('mechanic_verification_profiles').insert({
           user_id: userId,
           experience_level: mechanicData.experience_level,
@@ -289,11 +312,22 @@ export default function Register() {
         if (newUser) {
           let cvUrl = null;
           if (cvFile) {
-            const ext = cvFile.name.split('.').pop() || 'pdf';
-            const path = `mechanic-cvs/${newUser.id}-${Date.now()}.${ext}`;
-            const { data } = await supabase.storage.from('mechanic-cvs').getPublicUrl(path);
-            cvUrl = data.publicUrl;
+            const ext = cvFile.name.split('.').pop()?.toLowerCase() || 'pdf';
+            const timestamp = Date.now();
+            const random = Math.random().toString(36).slice(2);
+            const path = `mechanic-cvs/${newUser.id}-${timestamp}-${random}.${ext}`;
+
+            try {
+              const { error: uploadError } = await supabase.storage.from('mechanic-cvs').upload(path, cvFile);
+              if (!uploadError) {
+                const { data } = supabase.storage.from('mechanic-cvs').getPublicUrl(path);
+                cvUrl = data.publicUrl;
+              }
+            } catch (err) {
+              console.error('CV upload error:', err);
+            }
           }
+
           await supabase.from('mechanic_verification_profiles').insert({
             user_id: newUser.id,
             experience_level: mechanicData.experience_level,

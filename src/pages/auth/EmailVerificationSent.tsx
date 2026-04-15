@@ -100,7 +100,7 @@ export default function EmailVerificationSent() {
                   <CheckCircle className="w-4 h-4 text-yellow-400" />
                 </div>
                 <div>
-                  <p className="text-white text-sm font-medium">Open the email</p>
+                  <p className="text-white text-sm font-medium">Check your inbox (and spam folder)</p>
                   <p className="text-gray-500 text-xs mt-0.5">Look for an email from EquipLink &lt;support@equiplink.org&gt;</p>
                 </div>
               </div>
@@ -129,9 +129,9 @@ export default function EmailVerificationSent() {
             <div className="px-8 pb-8 space-y-3">
               <div className="h-px bg-gray-800 mb-5" />
 
-              <p className="text-center text-gray-500 text-xs mb-3">
-                Didn't receive it? Check your spam folder, or
-              </p>
+              <div className="bg-blue-950/40 border border-blue-900/50 rounded-lg p-3 mb-3">
+                <p className="text-blue-300 text-xs font-medium">Tip: If you don't see the email, check your spam or promotions folder and mark it as "Not Spam"</p>
+              </div>
 
               <button
                 onClick={handleResend}
