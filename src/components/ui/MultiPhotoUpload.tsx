@@ -4,6 +4,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { applyWatermarkToUrl } from '../../lib/useWatermark';
 import toast from 'react-hot-toast';
 
 interface MultiPhotoUploadProps {
@@ -38,7 +39,10 @@ export default function MultiPhotoUpload({
     if (error) { toast.error('Failed to upload photo. Try again.'); return null; }
 
     const { data } = supabase.storage.from('listing-photos').getPublicUrl(path);
-    return data.publicUrl;
+    let publicUrl = data.publicUrl;
+
+    const watermarkedUrl = await applyWatermarkToUrl(publicUrl, user.id);
+    return watermarkedUrl;
   }, [user, folder]);
 
   const handleFiles = async (files: FileList) => {

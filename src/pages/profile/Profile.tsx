@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { MechanicProfile, Machine, Review } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import { WatermarkSettings } from '../../components/ui/WatermarkSettings';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 
@@ -19,7 +20,7 @@ export default function Profile() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile?.avatar_url || null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'machines' | 'reviews'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'edit' | 'machines' | 'reviews' | 'watermark'>('overview');
   const [signingOut, setSigningOut] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
@@ -197,6 +198,7 @@ export default function Profile() {
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'edit', label: 'Edit Profile' },
+    ...(isSupplier ? [{ id: 'watermark', label: 'Watermark' }] : []),
     ...(isOwner ? [{ id: 'machines', label: 'Machines' }] : []),
     ...(isMechanic ? [{ id: 'reviews', label: 'Reviews' }] : []),
   ] as const;
@@ -906,6 +908,13 @@ export default function Profile() {
                   ))}
                 </div>
               )}
+            </motion.div>
+          )}
+
+          {/* WATERMARK TAB */}
+          {activeTab === 'watermark' && isSupplier && (
+            <motion.div key="watermark" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+              <WatermarkSettings />
             </motion.div>
           )}
 

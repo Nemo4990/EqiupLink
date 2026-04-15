@@ -4,6 +4,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { applyWatermarkToUrl } from '../../lib/useWatermark';
 import toast from 'react-hot-toast';
 
 interface PhotoUploadProps {
@@ -56,7 +57,8 @@ export default function PhotoUpload({
         .from('listing-photos')
         .getPublicUrl(path);
 
-      onUpload(data.publicUrl);
+      const watermarkedUrl = await applyWatermarkToUrl(data.publicUrl, user.id);
+      onUpload(watermarkedUrl);
       toast.success('Photo uploaded!');
     } catch {
       toast.error('Failed to upload photo. Please try again.');
