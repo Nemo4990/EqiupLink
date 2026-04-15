@@ -143,27 +143,46 @@ Deno.serve(async (req: Request) => {
 </html>
     `;
 
+    let emailStatus = "pending";
+    let emailError = null;
+
     try {
       const resend = new Resend(resendKey);
 
       const response = await resend.emails.send({
-        from: "team@equiplink.org",
+        from: "onboarding@resend.dev",
         to: email,
         subject: "Reset Your Equiplink Password",
         html: emailHtml,
       }) as unknown as ResendResponse;
 
       if (response.error || response.code) {
-        console.error("Resend API error:", response.error || response.code);
-        console.error("Full response:", response);
+        emailStatus = "failed";
+        emailError = JSON.stringify(response.error || response.code);
+        console.error("Resend API error:", emailError);
       } else if (response.id) {
+        emailStatus = "sent";
         console.log(`Email sent successfully: ${response.id}`);
       }
-    } catch (emailError) {
+    } catch (err) {
+      emailStatus = "failed";
+      emailError = err instanceof Error ? err.message : "Unknown error";
       console.error("Email sending exception:", emailError);
-      if (emailError instanceof Error) {
-        console.error("Error message:", emailError.message);
-      }
+    }
+
+    try {
+      await supabase
+        .from("email_delivery_logs")
+        .insert({
+          user_id: user.id,
+          email_to: email,
+          email_from: "onboarding@resend.dev",
+          subject: "Reset Your Equiplink Password",
+          status: emailStatus,
+          error_message: emailError,
+        });
+    } catch (logError) {
+      console.error("Failed to log email delivery:", logError);
     }
 
     return new Response(
