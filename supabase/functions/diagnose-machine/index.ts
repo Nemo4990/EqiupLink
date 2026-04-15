@@ -93,7 +93,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: profileData, error: profileError } = await supabaseClient
       .from("profiles")
-      .select("credits")
+      .select("credit_balance")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -102,7 +102,7 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Error fetching user profile", 500);
     }
 
-    const credits = Number(profileData?.credits ?? 0);
+    const credits = Number(profileData?.credit_balance ?? 0);
 
     if (credits <= 0) {
       return errorResponse("Insufficient credits", 403);
