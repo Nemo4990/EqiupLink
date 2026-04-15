@@ -150,7 +150,7 @@ Deno.serve(async (req: Request) => {
       const resend = new Resend(resendKey);
 
       const response = await resend.emails.send({
-        from: "onboarding@resend.dev",
+        from: "support@equiplink.org",
         to: email,
         subject: "Reset Your Equiplink Password",
         html: emailHtml,
@@ -176,7 +176,7 @@ Deno.serve(async (req: Request) => {
         .insert({
           user_id: user.id,
           email_to: email,
-          email_from: "onboarding@resend.dev",
+          email_from: "support@equiplink.org",
           subject: "Reset Your Equiplink Password",
           status: emailStatus,
           error_message: emailError,
