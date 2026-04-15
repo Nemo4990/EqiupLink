@@ -125,13 +125,7 @@ Deno.serve(async (req: Request) => {
 
     if (emailError) {
       console.error("Resend error:", emailError);
-      return new Response(
-        JSON.stringify({ message: "If that email exists, a reset link will be sent" }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      throw new Error(`Failed to send email: ${JSON.stringify(emailError)}`);
     }
 
     return new Response(
