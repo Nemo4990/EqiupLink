@@ -41,15 +41,15 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
 
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error("Missing Supabase configuration");
       return errorResponse("Server configuration error", 500);
     }
 
-    if (!openaiKey) {
-      console.error("Missing OpenAI API key");
+    if (!geminiKey) {
+      console.error("Missing Gemini API key");
       return errorResponse("AI service not configured", 500);
     }
 
@@ -108,60 +108,40 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Insufficient credits", 403);
     }
 
-    const systemPrompt = `You are a Senior Caterpillar & Perkins Field Engineer with 25+ years of heavy equipment maintenance experience.
-
-Your expertise includes:
-- Caterpillar heavy machinery (excavators, bulldozers, loaders, graders, etc.)
-- Perkins diesel engines
-- Equipment hydraulics and pneumatics
-- Electrical systems in heavy equipment
-
-When diagnosing equipment problems, provide your response in the following format:
-
-## Probable Cause
-List the most likely causes for the symptoms described, in order of probability.
-
-## Step-by-Step Troubleshooting
-Provide detailed troubleshooting steps. Reference specific pressure points (P1, P2, etc.) when applicable, mention specific fluid levels, temperatures, and diagnostic procedures.
-
-## Safety Warnings
-Always include critical safety warnings relevant to the equipment and problem described.`;
+    const systemPrompt = `You are a Caterpillar and Perkins Senior Field Service Engineer. Analyze the machine model, fault code, and symptoms. Provide: 1. Likely Cause, 2. Technical Troubleshooting Steps (referencing P1/P2/P3 pressures for transmissions if relevant), 3. Safety Precautions.`;
 
     const userMessage = `Machine: ${machineModel}${
       faultCode ? `\nFault Code: ${faultCode}` : ""
     }\n\nSymptoms/Problem: ${symptoms}`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${openaiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt,
-          },
-          {
-            role: "user",
-            content: userMessage,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 1500,
+        contents: [{
+          parts: [
+            { text: systemPrompt },
+            { text: userMessage }
+          ],
+          role: "user"
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2048,
+        },
       }),
     });
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error("OpenAI API error:", response.status, errorData);
+      console.error("Gemini API error:", response.status, errorData);
       return errorResponse("AI service error", 500);
     }
 
     const aiData = await response.json();
-    const aiResponse = aiData.choices?.[0]?.message?.content;
+    const aiResponse = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!aiResponse) {
       console.error("No response from AI model");
@@ -169,7 +149,7 @@ Always include critical safety warnings relevant to the equipment and problem de
     }
 
     const { error: diagnosticError } = await supabaseClient
-      .from("diagnostics")
+      .from("diagnostics_history")
       .insert({
         user_id: user.id,
         machine_model: machineModel,

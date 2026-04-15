@@ -34,10 +34,10 @@ export default function AiDiagnose() {
     try {
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('credits')
+        .select('credit_balance')
         .eq('id', user.id)
         .maybeSingle();
-      setCredits(profileData?.credits ?? 0);
+      setCredits(profileData?.credit_balance ?? 0);
     } catch (err) {
       console.error('Error loading user data:', err);
     }
@@ -47,7 +47,7 @@ export default function AiDiagnose() {
     if (!user) return;
     try {
       const { data } = await supabase
-        .from('diagnostics')
+        .from('diagnostics_history')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
