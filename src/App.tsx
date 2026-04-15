@@ -47,6 +47,12 @@ import TermsOfService from './pages/legal/TermsOfService';
 import Onboarding from './pages/onboarding/Onboarding';
 import ReferralDashboard from './pages/referrals/ReferralDashboard';
 import SupplierContact from './pages/profile/SupplierContact';
+import MechanicRegistration from './pages/onboarding/MechanicRegistration';
+import MechanicVerificationDashboard from './pages/admin/MechanicVerification';
+import PostJob from './pages/jobs/PostJob';
+import MyJobs from './pages/jobs/MyJobs';
+import OwnerJobs from './pages/jobs/OwnerJobs';
+import JobMatching from './pages/admin/JobMatching';
 
 function IdleWarningModal() {
   const { idleWarning, idleSecondsLeft, resetIdleTimer, signOut } = useAuth();
@@ -149,12 +155,18 @@ function AppContent() {
         <Route path="/sessions" element={<ProtectedRoute><ActiveSessions /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><Admin /></ProtectedRoute>} />
         <Route path="/admin/announcements" element={<ProtectedRoute requiredRole="admin"><Announcements /></ProtectedRoute>} />
+        <Route path="/admin/mechanic-verification" element={<ProtectedRoute requiredRole="admin"><MechanicVerificationDashboard /></ProtectedRoute>} />
+        <Route path="/admin/job-matching" element={<ProtectedRoute requiredRole="admin"><JobMatching /></ProtectedRoute>} />
         <Route path="/forum" element={<ForumList />} />
         <Route path="/forum/:postId" element={<ForumThread />} />
         <Route path="/forum/new" element={<ProtectedRoute><NewForumPost /></ProtectedRoute>} />
         <Route path="/ai-diagnose" element={<ProtectedRoute><AiDiagnose /></ProtectedRoute>} />
         <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+        <Route path="/mechanic-registration" element={<ProtectedRoute><MechanicRegistration /></ProtectedRoute>} />
         <Route path="/referrals" element={<ProtectedRoute><ReferralDashboard /></ProtectedRoute>} />
+        <Route path="/jobs/post" element={<ProtectedRoute><PostJob /></ProtectedRoute>} />
+        <Route path="/jobs/my-jobs" element={<ProtectedRoute><MyJobs /></ProtectedRoute>} />
+        <Route path="/jobs/owner-jobs" element={<ProtectedRoute><OwnerJobs /></ProtectedRoute>} />
         <Route path="/supplier/:supplierId/contact" element={<SupplierContact />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
