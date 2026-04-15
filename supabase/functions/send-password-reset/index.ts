@@ -117,7 +117,7 @@ Deno.serve(async (req: Request) => {
     `;
 
     const { error: emailError } = await resend.emails.send({
-      from: "noreply@equiplink.com",
+      from: "onboarding@resend.dev",
       to: email,
       subject: "Reset Your Equiplink Password",
       html: emailHtml,
