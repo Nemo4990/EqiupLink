@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Wrench, Mail, Lock, User, Eye, EyeOff, AlertCircle, HardHat, Truck, Package, Phone, MapPin, ChevronDown, Gift, Check, X as XIcon, Upload, FileText, Camera as CameraIcon, Image as ImageIcon } from 'lucide-react';
+import { Wrench, Mail, Lock, User, Eye, EyeOff, AlertCircle, HardHat, Truck, Package, Phone, MapPin, ChevronDown, Gift, Check, X as XIcon, Upload, FileText, Camera as CameraIcon, Image as ImageIcon, Award, Briefcase, Home } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../lib/i18n/LanguageContext';
 import { validateReferralCode, processReferral } from '../../lib/referrals';
@@ -60,6 +60,24 @@ export default function Register() {
   const [uploadingLicense, setUploadingLicense] = useState(false);
   const licenseInputRef = useRef<HTMLInputElement>(null);
 
+  // Mechanic registration fields
+  const [mechanicData, setMechanicData] = useState({
+    experience_level: '',
+    years_experience: 0,
+    educational_status: '',
+    driving_license: '',
+    expertise_areas: [] as string[],
+    diagnostic_tools: [] as string[],
+    owns_service_truck: false,
+    employment_status: '',
+    company_name: '',
+    willing_travel: false,
+    contact_address: '',
+  });
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [uploadingCv, setUploadingCv] = useState(false);
+  const cvInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const code = searchParams.get('ref');
     if (code) {
@@ -114,6 +132,68 @@ export default function Register() {
     } catch { /* user cancelled */ }
   };
 
+  const uploadCVFile = async (file: File) => {
+    if (!file.type.startsWith('application/') && !file.name.endsWith('.pdf') && !file.name.endsWith('.doc') && !file.name.endsWith('.docx')) {
+      toast.error('Please select a PDF or DOC file');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('CV must be under 5MB');
+      return;
+    }
+    setUploadingCv(true);
+    try {
+      const ext = file.name.split('.').pop() || 'pdf';
+      const path = `mechanic-cvs/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from('mechanic-cvs').upload(path, file, { upsert: false });
+      if (error) throw error;
+      const { data } = supabase.storage.from('mechanic-cvs').getPublicUrl(path);
+      setCvFile(file);
+      toast.success('CV uploaded successfully');
+    } catch {
+      toast.error('Failed to upload CV');
+    } finally {
+      setUploadingCv(false);
+    }
+  };
+
+  const handleCVFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) uploadCVFile(file);
+    e.target.value = '';
+  };
+
+  const expertiseOptions = [
+    'Engine Repair', 'Transmission', 'Hydraulic Systems', 'Electric Systems', 'ECM Programming',
+    'CRC Diagnostics', 'Field Technology', 'Caterpillar Equipment', 'Hitachi Equipment',
+    'Doosan Equipment', 'Volvo Equipment', 'JCB Equipment', 'Komatsu Equipment',
+    'Hyundai Equipment', 'XCMG Equipment', 'Sany Equipment', 'Liugong Equipment', 'SDLG Equipment',
+  ];
+
+  const diagnosticToolsOptions = [
+    'CAT ET (Caterpillar)', 'Doosan Diagnostic Tool', 'Komatsu KOMTRAX', 'Volvo Diagnostic Tool',
+    'JCB Service Master', 'Hyundai Diagnostic Tool', 'XCMG Diagnostic Tool', 'Sany Diagnostic Tool',
+    'Generic OBD-II Scanner', 'Heavy Equipment Scanner',
+  ];
+
+  const toggleExpertise = (expertise: string) => {
+    setMechanicData(prev => ({
+      ...prev,
+      expertise_areas: prev.expertise_areas.includes(expertise)
+        ? prev.expertise_areas.filter(e => e !== expertise)
+        : [...prev.expertise_areas, expertise],
+    }));
+  };
+
+  const toggleDiagnosticTool = (tool: string) => {
+    setMechanicData(prev => ({
+      ...prev,
+      diagnostic_tools: prev.diagnostic_tools.includes(tool)
+        ? prev.diagnostic_tools.filter(t => t !== tool)
+        : [...prev.diagnostic_tools, tool],
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -128,6 +208,16 @@ export default function Register() {
         setError(t.auth.nameMismatch);
         return;
       }
+    }
+    if (role === 'mechanic') {
+      if (!mechanicData.experience_level) { setError('Please select experience level'); return; }
+      if (!mechanicData.educational_status) { setError('Please select educational status'); return; }
+      if (!mechanicData.driving_license) { setError('Please select driving license type'); return; }
+      if (mechanicData.expertise_areas.length === 0) { setError('Please select at least one expertise area'); return; }
+      if (mechanicData.diagnostic_tools.length === 0) { setError('Please select at least one diagnostic tool'); return; }
+      if (!mechanicData.employment_status) { setError('Please select employment status'); return; }
+      if (mechanicData.employment_status === 'employed' && !mechanicData.company_name.trim()) { setError('Please enter company name'); return; }
+      if (!mechanicData.contact_address.trim()) { setError('Please enter contact address'); return; }
     }
     setLoading(true);
     const { error, needsVerification, userId } = await signUp(email, password, name, role, phone, location);
@@ -150,6 +240,34 @@ export default function Register() {
           supabase.from('profiles').update({ trade_license_status: 'pending' }).eq('id', userId);
         });
       }
+      if (userId && role === 'mechanic') {
+        let cvUrl = null;
+        if (cvFile) {
+          const ext = cvFile.name.split('.').pop() || 'pdf';
+          const path = `mechanic-cvs/${userId}-${Date.now()}.${ext}`;
+          const { data } = await supabase.storage.from('mechanic-cvs').getPublicUrl(path);
+          cvUrl = data.publicUrl;
+        }
+        await supabase.from('mechanic_verification_profiles').insert({
+          user_id: userId,
+          experience_level: mechanicData.experience_level,
+          years_experience: mechanicData.years_experience,
+          current_location: location,
+          educational_status: mechanicData.educational_status,
+          driving_license: mechanicData.driving_license,
+          hands_on_experience: '',
+          expertise_areas: mechanicData.expertise_areas,
+          diagnostic_tools: mechanicData.diagnostic_tools,
+          owns_service_truck: mechanicData.owns_service_truck,
+          employment_status: mechanicData.employment_status,
+          company_name: mechanicData.company_name || null,
+          willing_travel: mechanicData.willing_travel,
+          contact_email: email,
+          contact_phone: phone,
+          contact_address: mechanicData.contact_address,
+          cv_file_url: cvUrl,
+        }).catch(() => {});
+      }
       navigate('/verify-email-sent', { state: { name, email, userId, referrerId: referralValid ? referrerId : null }, replace: true });
     } else {
       if (role === 'supplier' && tradeLicenseUrl) {
@@ -164,6 +282,37 @@ export default function Register() {
             status: 'pending',
           });
           await supabase.from('profiles').update({ trade_license_status: 'pending' }).eq('id', newUser.id);
+        }
+      }
+      if (role === 'mechanic') {
+        const { data: { user: newUser } } = await supabase.auth.getUser();
+        if (newUser) {
+          let cvUrl = null;
+          if (cvFile) {
+            const ext = cvFile.name.split('.').pop() || 'pdf';
+            const path = `mechanic-cvs/${newUser.id}-${Date.now()}.${ext}`;
+            const { data } = await supabase.storage.from('mechanic-cvs').getPublicUrl(path);
+            cvUrl = data.publicUrl;
+          }
+          await supabase.from('mechanic_verification_profiles').insert({
+            user_id: newUser.id,
+            experience_level: mechanicData.experience_level,
+            years_experience: mechanicData.years_experience,
+            current_location: location,
+            educational_status: mechanicData.educational_status,
+            driving_license: mechanicData.driving_license,
+            hands_on_experience: '',
+            expertise_areas: mechanicData.expertise_areas,
+            diagnostic_tools: mechanicData.diagnostic_tools,
+            owns_service_truck: mechanicData.owns_service_truck,
+            employment_status: mechanicData.employment_status,
+            company_name: mechanicData.company_name || null,
+            willing_travel: mechanicData.willing_travel,
+            contact_email: email,
+            contact_phone: phone,
+            contact_address: mechanicData.contact_address,
+            cv_file_url: cvUrl,
+          }).catch(() => {});
         }
       }
       toast.success(t.auth.accountCreated);
@@ -351,6 +500,203 @@ export default function Register() {
               <p className="text-red-400 text-xs mt-1">{t.auth.invalidReferralCode}</p>
             )}
           </div>
+
+          {role === 'mechanic' && (
+            <div className="space-y-4 bg-gray-900 border border-orange-400/30 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Wrench className="w-5 h-5 text-orange-400" />
+                <div>
+                  <p className="text-white font-semibold text-sm">Professional Mechanic Profile</p>
+                  <p className="text-gray-400 text-xs">Complete your professional details for verification</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">Experience Level <span className="text-red-400">*</span></label>
+                <select
+                  value={mechanicData.experience_level}
+                  onChange={(e) => setMechanicData(prev => ({ ...prev, experience_level: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 focus:border-orange-400 text-white rounded-lg py-2.5 px-3 outline-none transition-colors"
+                >
+                  <option value="">Select experience level</option>
+                  <option value="novice">Novice (0-2 years)</option>
+                  <option value="intermediate">Intermediate (2-5 years)</option>
+                  <option value="advanced">Advanced (5-10 years)</option>
+                  <option value="expert">Expert (10+ years)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">Years of Experience <span className="text-red-400">*</span></label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={mechanicData.years_experience}
+                  onChange={(e) => setMechanicData(prev => ({ ...prev, years_experience: parseInt(e.target.value) || 0 }))}
+                  className="w-full bg-gray-800 border border-gray-700 focus:border-orange-400 text-white rounded-lg py-2.5 px-3 outline-none transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">Educational Status <span className="text-red-400">*</span></label>
+                <select
+                  value={mechanicData.educational_status}
+                  onChange={(e) => setMechanicData(prev => ({ ...prev, educational_status: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 focus:border-orange-400 text-white rounded-lg py-2.5 px-3 outline-none transition-colors"
+                >
+                  <option value="">Select educational status</option>
+                  <option value="high_school">High School</option>
+                  <option value="diploma">Diploma/Certificate</option>
+                  <option value="bachelors">Bachelor's Degree</option>
+                  <option value="masters">Master's Degree</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">Driving License <span className="text-red-400">*</span></label>
+                <select
+                  value={mechanicData.driving_license}
+                  onChange={(e) => setMechanicData(prev => ({ ...prev, driving_license: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 focus:border-orange-400 text-white rounded-lg py-2.5 px-3 outline-none transition-colors"
+                >
+                  <option value="">Select driving license</option>
+                  <option value="none">No License</option>
+                  <option value="category_a">Category A (Motorcycle)</option>
+                  <option value="category_b">Category B (Car)</option>
+                  <option value="category_c">Category C (Truck)</option>
+                  <option value="category_d">Category D (Heavy Vehicle)</option>
+                  <option value="multiple">Multiple Categories</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">Areas of Expertise <span className="text-red-400">*</span></label>
+                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto bg-gray-800 p-3 rounded-lg border border-gray-700">
+                  {expertiseOptions.map((expertise) => (
+                    <label key={expertise} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={mechanicData.expertise_areas.includes(expertise)}
+                        onChange={() => toggleExpertise(expertise)}
+                        className="w-4 h-4 rounded"
+                      />
+                      <span className="text-gray-300 text-xs">{expertise}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">Diagnostic Tools <span className="text-red-400">*</span></label>
+                <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto bg-gray-800 p-3 rounded-lg border border-gray-700">
+                  {diagnosticToolsOptions.map((tool) => (
+                    <label key={tool} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={mechanicData.diagnostic_tools.includes(tool)}
+                        onChange={() => toggleDiagnosticTool(tool)}
+                        className="w-4 h-4 rounded"
+                      />
+                      <span className="text-gray-300 text-xs">{tool}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <label className="flex items-center gap-3 p-3 bg-gray-800 border border-gray-700 rounded-lg cursor-pointer hover:border-gray-600 transition">
+                <input
+                  type="checkbox"
+                  checked={mechanicData.owns_service_truck}
+                  onChange={(e) => setMechanicData(prev => ({ ...prev, owns_service_truck: e.target.checked }))}
+                  className="w-4 h-4 rounded"
+                />
+                <span className="text-white font-medium text-sm">I own a service truck</span>
+              </label>
+
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-2">Employment Status <span className="text-red-400">*</span></label>
+                <select
+                  value={mechanicData.employment_status}
+                  onChange={(e) => setMechanicData(prev => ({ ...prev, employment_status: e.target.value }))}
+                  className="w-full bg-gray-800 border border-gray-700 focus:border-orange-400 text-white rounded-lg py-2.5 px-3 outline-none transition-colors"
+                >
+                  <option value="">Select employment status</option>
+                  <option value="employed">Employed</option>
+                  <option value="self-employed">Self-Employed</option>
+                  <option value="looking">Looking for Work</option>
+                  <option value="not-available">Not Available</option>
+                </select>
+              </div>
+
+              {mechanicData.employment_status === 'employed' && (
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-1.5">Company Name <span className="text-red-400">*</span></label>
+                  <input
+                    type="text"
+                    value={mechanicData.company_name}
+                    onChange={(e) => setMechanicData(prev => ({ ...prev, company_name: e.target.value }))}
+                    placeholder="Enter company name"
+                    className="w-full bg-gray-800 border border-gray-700 focus:border-orange-400 text-white placeholder-gray-600 rounded-lg py-2.5 px-3 outline-none transition-colors"
+                  />
+                </div>
+              )}
+
+              <label className="flex items-center gap-3 p-3 bg-gray-800 border border-gray-700 rounded-lg cursor-pointer hover:border-gray-600 transition">
+                <input
+                  type="checkbox"
+                  checked={mechanicData.willing_travel}
+                  onChange={(e) => setMechanicData(prev => ({ ...prev, willing_travel: e.target.checked }))}
+                  className="w-4 h-4 rounded"
+                />
+                <span className="text-white font-medium text-sm">Willing to travel for jobs</span>
+              </label>
+
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-1.5">Contact Address <span className="text-red-400">*</span></label>
+                <textarea
+                  value={mechanicData.contact_address}
+                  onChange={(e) => setMechanicData(prev => ({ ...prev, contact_address: e.target.value }))}
+                  placeholder="Street address, district, city..."
+                  rows={2}
+                  className="w-full bg-gray-800 border border-gray-700 focus:border-orange-400 text-white placeholder-gray-600 rounded-lg py-2.5 px-3 outline-none transition-colors resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-sm font-medium mb-1.5">CV/Resume (Optional)</label>
+                {cvFile ? (
+                  <div className="flex items-center justify-between bg-gray-800 border border-green-600 rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-green-400" />
+                      <span className="text-green-400 text-sm font-medium">{cvFile.name}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCvFile(null)}
+                      className="text-red-400 hover:text-red-300"
+                    >
+                      <XIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-gray-700 bg-gray-800/50 rounded-lg p-4 flex flex-col items-center gap-2">
+                    <FileText className="w-6 h-6 text-gray-500" />
+                    <p className="text-gray-300 text-sm font-medium">Click to upload CV (PDF/DOC)</p>
+                    <button
+                      type="button"
+                      onClick={() => cvInputRef.current?.click()}
+                      className="bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs px-3 py-1.5 rounded transition"
+                    >
+                      Choose File
+                    </button>
+                  </div>
+                )}
+                <input ref={cvInputRef} type="file" accept=".pdf,.doc,.docx" onChange={handleCVFileChange} className="hidden" />
+              </div>
+            </div>
+          )}
 
           {role === 'supplier' && (
             <div className="space-y-4 bg-gray-900 border border-yellow-400/30 rounded-xl p-5">
