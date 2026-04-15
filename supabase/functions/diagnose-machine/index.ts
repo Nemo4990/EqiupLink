@@ -58,10 +58,16 @@ Deno.serve(async (req: Request) => {
     });
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
-
-    if (authError || !user) {
-      console.error("Auth failed:", authError?.message);
+    let user;
+    try {
+      const { data, error: authError } = await supabaseClient.auth.getUser(token);
+      if (authError || !data?.user) {
+        console.error("Auth failed:", authError?.message || "No user");
+        return errorResponse("Unauthorized", 401);
+      }
+      user = data.user;
+    } catch (e) {
+      console.error("Auth error:", e);
       return errorResponse("Unauthorized", 401);
     }
 
