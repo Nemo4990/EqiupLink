@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Wrench, Mail, RefreshCw, ArrowLeft, CheckCircle, Clock, ShieldCheck } from 'lucide-react';
+import { Wrench, Mail, RefreshCw, ArrowLeft, CheckCircle, Clock, ShieldCheck, Loader2 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 const RESEND_COOLDOWN = 60;
+const VERIFICATION_CHECK_INTERVAL = 2000;
 
 export default function EmailVerificationSent() {
   const loc = useLocation();
@@ -15,12 +17,35 @@ export default function EmailVerificationSent() {
 
   const [cooldown, setCooldown] = useState(RESEND_COOLDOWN);
   const [resending, setResending] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     if (!email) {
       navigate('/register', { replace: true });
     }
   }, [email, navigate]);
+
+  useEffect(() => {
+    const checkVerification = async () => {
+      try {
+        setChecking(true);
+        const { data } = await supabase.auth.getUser();
+        if (data.user?.email_confirmed_at) {
+          toast.success('Email verified! Redirecting to dashboard...');
+          setTimeout(() => {
+            navigate('/onboarding', { replace: true });
+          }, 500);
+        }
+      } catch (err) {
+        console.error('Verification check error:', err);
+      } finally {
+        setChecking(false);
+      }
+    };
+
+    const interval = setInterval(checkVerification, VERIFICATION_CHECK_INTERVAL);
+    return () => clearInterval(interval);
+  }, [navigate]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -129,9 +154,18 @@ export default function EmailVerificationSent() {
             <div className="px-8 pb-8 space-y-3">
               <div className="h-px bg-gray-800 mb-5" />
 
-              <div className="bg-blue-950/40 border border-blue-900/50 rounded-lg p-3 mb-3">
-                <p className="text-blue-300 text-xs font-medium">Tip: If you don't see the email, check your spam or promotions folder and mark it as "Not Spam"</p>
-              </div>
+              {checking && (
+                <div className="flex items-center gap-2 bg-blue-950/40 border border-blue-900/50 rounded-lg p-3 mb-3">
+                  <Loader2 className="w-4 h-4 text-blue-400 animate-spin flex-shrink-0" />
+                  <p className="text-blue-300 text-xs font-medium">Checking for email verification...</p>
+                </div>
+              )}
+
+              {!checking && (
+                <div className="bg-blue-950/40 border border-blue-900/50 rounded-lg p-3 mb-3">
+                  <p className="text-blue-300 text-xs font-medium">Tip: If you don't see the email, check your spam or promotions folder and mark it as "Not Spam"</p>
+                </div>
+              )}
 
               <button
                 onClick={handleResend}

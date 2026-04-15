@@ -61,7 +61,8 @@ Deno.serve(async (req: Request) => {
 
     if (tokenError) throw tokenError;
 
-    const resetUrl = `${Deno.env.get("SUPABASE_URL")?.replace("/rest/v1", "")}/#/reset-password?token=${token}`;
+    const appUrl = Deno.env.get("SUPABASE_URL")?.split("/storage").join("") || "";
+    const resetUrl = `${appUrl}/reset-password?token=${token}`;
 
     const emailHtml = `
 <!DOCTYPE html>

@@ -73,35 +73,31 @@ export default function ResetPassword() {
 
     setLoading(true);
     try {
-      const { data: tokenData } = await supabase
-        .from('password_reset_tokens')
-        .select('user_id')
-        .eq('token', token)
-        .maybeSingle();
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-password-reset`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ token, password }),
+        }
+      );
 
-      if (!tokenData) {
-        setError('Invalid reset link');
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error || 'Failed to reset password');
+        toast.error(data.error || 'Failed to reset password');
         setLoading(false);
         return;
       }
-
-      const { error: updateError } = await supabase.auth.admin.updateUserById(
-        tokenData.user_id,
-        { password }
-      );
-
-      if (updateError) throw updateError;
-
-      await supabase
-        .from('password_reset_tokens')
-        .delete()
-        .eq('token', token);
 
       setSuccess(true);
       toast.success('Password reset successfully!');
 
       setTimeout(() => {
-        navigate('/login');
+        navigate('/login', { replace: true });
       }, 2000);
     } catch (err) {
       console.error('Reset error:', err);
