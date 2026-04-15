@@ -137,26 +137,27 @@ export default function Register() {
     const ext = file.name.split('.').pop()?.toLowerCase() || '';
 
     if (!validExtensions.includes(ext)) {
-      toast.error('Please select a PDF or DOC file');
+      toast.error('Please select a PDF, DOC, or DOCX file');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
       toast.error('CV must be under 5MB');
       return;
     }
+
     setUploadingCv(true);
     try {
       const timestamp = Date.now();
       const random = Math.random().toString(36).slice(2);
-      const path = `mechanic-cvs/${timestamp}_${random}.${ext}`;
+      const path = `temp/${timestamp}_${random}.${ext}`;
 
-      const { error, data: uploadData } = await supabase.storage
+      const { error } = await supabase.storage
         .from('mechanic-cvs')
-        .upload(path, file);
+        .upload(path, file, { upsert: false });
 
       if (error) {
         console.error('Storage error:', error);
-        throw error;
+        throw new Error(error.message || 'Upload failed');
       }
 
       setCvFile(file);
@@ -258,13 +259,18 @@ export default function Register() {
           const ext = cvFile.name.split('.').pop()?.toLowerCase() || 'pdf';
           const timestamp = Date.now();
           const random = Math.random().toString(36).slice(2);
-          const path = `mechanic-cvs/${userId}-${timestamp}-${random}.${ext}`;
+          const finalPath = `users/${userId}/${timestamp}_${random}.${ext}`;
 
           try {
-            const { error: uploadError } = await supabase.storage.from('mechanic-cvs').upload(path, cvFile);
+            const { error: uploadError } = await supabase.storage
+              .from('mechanic-cvs')
+              .upload(finalPath, cvFile, { upsert: false });
+
             if (!uploadError) {
-              const { data } = supabase.storage.from('mechanic-cvs').getPublicUrl(path);
+              const { data } = supabase.storage.from('mechanic-cvs').getPublicUrl(finalPath);
               cvUrl = data.publicUrl;
+            } else {
+              console.error('CV upload error:', uploadError);
             }
           } catch (err) {
             console.error('CV upload error:', err);
@@ -315,13 +321,18 @@ export default function Register() {
             const ext = cvFile.name.split('.').pop()?.toLowerCase() || 'pdf';
             const timestamp = Date.now();
             const random = Math.random().toString(36).slice(2);
-            const path = `mechanic-cvs/${newUser.id}-${timestamp}-${random}.${ext}`;
+            const finalPath = `users/${newUser.id}/${timestamp}_${random}.${ext}`;
 
             try {
-              const { error: uploadError } = await supabase.storage.from('mechanic-cvs').upload(path, cvFile);
+              const { error: uploadError } = await supabase.storage
+                .from('mechanic-cvs')
+                .upload(finalPath, cvFile, { upsert: false });
+
               if (!uploadError) {
-                const { data } = supabase.storage.from('mechanic-cvs').getPublicUrl(path);
+                const { data } = supabase.storage.from('mechanic-cvs').getPublicUrl(finalPath);
                 cvUrl = data.publicUrl;
+              } else {
+                console.error('CV upload error:', uploadError);
               }
             } catch (err) {
               console.error('CV upload error:', err);
