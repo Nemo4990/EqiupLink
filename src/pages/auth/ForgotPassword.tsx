@@ -32,13 +32,18 @@ export default function ForgotPassword() {
         }
       );
 
-      if (!response.ok) throw new Error('Failed to send reset email');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to send reset email');
+      }
 
+      const data = await response.json();
       setSent(true);
       toast.success('Check your email for reset instructions');
     } catch (error) {
       console.error('Error:', error);
-      toast.error('Failed to send reset email');
+      const message = error instanceof Error ? error.message : 'Failed to send reset email';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
