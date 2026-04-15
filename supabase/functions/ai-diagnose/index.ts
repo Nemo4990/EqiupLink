@@ -23,12 +23,18 @@ Deno.serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
+      console.error("Missing authorization header");
       return errorResponse("Missing authorization header", 401);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error("Missing Supabase environment variables");
+      return errorResponse("Server configuration error", 500);
+    }
 
     const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false },
@@ -37,14 +43,21 @@ Deno.serve(async (req: Request) => {
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
 
-    if (authError || !user) {
+    if (authError) {
+      console.error("Auth error:", authError);
+      return errorResponse("Unauthorized", 401);
+    }
+
+    if (!user) {
+      console.error("No user found from token");
       return errorResponse("Unauthorized", 401);
     }
 
     let body: { machineType?: string; brand?: string; problem?: string };
     try {
       body = await req.json();
-    } catch {
+    } catch (e) {
+      console.error("JSON parse error:", e);
       return errorResponse("Invalid JSON body", 400);
     }
 
@@ -92,11 +105,16 @@ Deno.serve(async (req: Request) => {
     const isPro = profileData?.subscription_tier === "pro";
 
     if (!isPro && usedCount >= freeQuota) {
-      const { data: wallet } = await supabaseClient
+      const { data: wallet, error: walletError } = await supabaseClient
         .from("wallets")
         .select("id, balance, total_spent")
         .eq("user_id", user.id)
         .maybeSingle();
+
+      if (walletError) {
+        console.error("Wallet fetch error:", walletError);
+        return errorResponse("Error fetching wallet", 500);
+      }
 
       if (!wallet || Number(wallet.balance) < cost) {
         return errorResponse("insufficient_balance", 402);
@@ -104,7 +122,7 @@ Deno.serve(async (req: Request) => {
 
       const newBalance = Number(wallet.balance) - cost;
 
-      await supabaseClient.from("wallet_transactions").insert({
+      const { error: txError } = await supabaseClient.from("wallet_transactions").insert({
         wallet_id: wallet.id,
         user_id: user.id,
         type: "deduction",
@@ -115,7 +133,12 @@ Deno.serve(async (req: Request) => {
         status: "completed",
       });
 
-      await supabaseClient
+      if (txError) {
+        console.error("Transaction insert error:", txError);
+        return errorResponse("Error recording transaction", 500);
+      }
+
+      const { error: walletUpdateError } = await supabaseClient
         .from("wallets")
         .update({
           balance: newBalance,
@@ -123,10 +146,20 @@ Deno.serve(async (req: Request) => {
         })
         .eq("id", wallet.id);
 
-      await supabaseClient
+      if (walletUpdateError) {
+        console.error("Wallet update error:", walletUpdateError);
+        return errorResponse("Error updating wallet", 500);
+      }
+
+      const { error: profileUpdateError } = await supabaseClient
         .from("profiles")
         .update({ wallet_balance: newBalance })
         .eq("id", user.id);
+
+      if (profileUpdateError) {
+        console.error("Profile update error:", profileUpdateError);
+        return errorResponse("Error updating profile", 500);
+      }
     }
 
     let aiResponse;
@@ -214,7 +247,9 @@ Respond ONLY with the JSON object, nothing else.`;
     });
   } catch (err) {
     console.error("ai-diagnose error:", err);
-    return errorResponse("Internal server error", 500);
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error("Error details:", errorMsg);
+    return errorResponse(`Internal server error: ${errorMsg}`, 500);
   }
 });
 

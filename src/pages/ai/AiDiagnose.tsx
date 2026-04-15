@@ -90,10 +90,16 @@ export default function AiDiagnose() {
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-diagnose`;
       const { data: { session } } = await supabase.auth.getSession();
 
+      if (!session?.access_token) {
+        toast.error('Session expired. Please refresh and login again.');
+        navigate('/login');
+        return;
+      }
+
       const res = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
           'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
@@ -108,7 +114,9 @@ export default function AiDiagnose() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(err.error || 'Failed to get diagnosis');
+        const errorMsg = err.error || `Server error (${res.status})`;
+        console.error('API Error:', errorMsg, err);
+        throw new Error(errorMsg);
       }
 
       const aiRes: AiResponse = await res.json();
