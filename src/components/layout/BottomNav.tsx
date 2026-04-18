@@ -28,7 +28,7 @@ export default function BottomNav({ unreadCount }: BottomNavProps) {
     ? [
         { to: '/admin', icon: Shield, label: t.bottomNav.admin, matchPaths: ['/admin'] },
         { to: '/dashboard', icon: Home, label: t.bottomNav.home, matchPaths: ['/dashboard'] },
-        { to: '/users', icon: User, label: t.bottomNav.users, matchPaths: ['/marketplace/mechanics'] },
+        { to: '/admin/dispatch', icon: User, label: t.bottomNav.users, matchPaths: ['/admin/dispatch'] },
         { to: '/notifications', icon: Bell, label: t.bottomNav.alerts, matchPaths: ['/notifications'], badge: unreadCount },
         { to: '/profile', icon: User, label: t.bottomNav.profile, matchPaths: ['/profile'] },
       ]

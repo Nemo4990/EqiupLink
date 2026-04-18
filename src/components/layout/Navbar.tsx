@@ -92,7 +92,6 @@ export default function Navbar() {
             </Link>
 
             <div className="hidden md:flex items-center gap-6">
-              {!isOwner && <Link to="/marketplace/mechanics" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.findMechanics}</Link>}
               <Link to="/marketplace/parts" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.spareParts}</Link>
               <Link to="/marketplace/rentals" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.rentals}</Link>
               <Link to="/breakdown" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.breakdown}</Link>
@@ -257,7 +256,6 @@ export default function Navbar() {
             >
               <div className="px-4 py-4 space-y-1">
                 {[
-                  { to: '/marketplace/mechanics', label: t.nav.findMechanics },
                   { to: '/marketplace/parts', label: t.nav.spareParts },
                   { to: '/marketplace/rentals', label: t.nav.rentals },
                   { to: '/breakdown', label: t.nav.breakdownRequests },

@@ -3,13 +3,14 @@ import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Wrench, MessageSquare, Bell, ChevronRight, Crown,
-  Wallet, TrendingUp, CreditCard, ArrowRight, BarChart3,
-  Flame, Trophy, Star, Zap, Target, Award, CheckCircle,
-  Briefcase, Package, AlertTriangle
+  Wallet, TrendingUp, ArrowRight, BarChart3,
+  Flame, Trophy, Star, Zap, Award, CheckCircle,
+  Briefcase, Package, AlertTriangle, MapPin, Navigation,
+  Phone, Clock, User, FileText, Banknote
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { BreakdownRequest, Notification, Wallet as WalletType, Subscription, Commission } from '../../types';
+import { Notification, Wallet as WalletType, Subscription, Commission } from '../../types';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { format, formatDistanceToNow } from 'date-fns';
 
@@ -35,6 +36,23 @@ interface LeaderboardEntry {
   rank: number;
 }
 
+interface ActiveJob {
+  id: string;
+  machine_type: string | null;
+  machine_model: string | null;
+  machine_serial: string | null;
+  description: string | null;
+  location: string | null;
+  urgency: string | null;
+  dispatch_status: string | null;
+  mechanic_offer_status: string | null;
+  mechanic_offer_sent_at: string | null;
+  quote_amount: number | null;
+  owner_location_shared: boolean | null;
+  created_at: string;
+  owner?: { name: string | null; phone: string | null } | null;
+}
+
 const LEVEL_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; min: number; max: number }> = {
   rookie:  { label: 'Rookie',  color: 'text-gray-400',   bg: 'bg-gray-800',       border: 'border-gray-700', min: 0,   max: 50 },
   skilled: { label: 'Skilled', color: 'text-green-400',  bg: 'bg-green-900/20',   border: 'border-green-800/40', min: 50,  max: 200 },
@@ -43,36 +61,69 @@ const LEVEL_CONFIG: Record<string, { label: string; color: string; bg: string; b
   master:  { label: 'Master',  color: 'text-yellow-400', bg: 'bg-yellow-900/20',  border: 'border-yellow-700/40', min: 1000, max: 1000 },
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  open: 'text-blue-400 bg-blue-900/30',
-  assigned: 'text-yellow-400 bg-yellow-900/30',
-  in_progress: 'text-orange-400 bg-orange-900/30',
-  resolved: 'text-green-400 bg-green-900/30',
-  cancelled: 'text-gray-400 bg-gray-800',
-};
+const DISPATCH_STEPS = [
+  { key: 'accepted',    label: 'Accepted',        icon: CheckCircle },
+  { key: 'quote_sent',  label: 'Quote Sent',       icon: FileText },
+  { key: 'paid',        label: 'Owner Paid',       icon: Banknote },
+  { key: 'dispatched',  label: 'Head to Site',     icon: Navigation },
+  { key: 'completed',   label: 'Completed',        icon: CheckCircle },
+];
+
+const STEP_ORDER = ['accepted', 'quote_sent', 'paid', 'dispatched', 'completed'];
 
 const URGENCY_COLORS: Record<string, string> = {
-  low: 'text-green-400 bg-green-900/30',
-  medium: 'text-yellow-400 bg-yellow-900/30',
-  high: 'text-orange-400 bg-orange-900/30',
+  low:      'text-green-400 bg-green-900/30',
+  medium:   'text-yellow-400 bg-yellow-900/30',
+  high:     'text-orange-400 bg-orange-900/30',
   critical: 'text-red-400 bg-red-900/30',
 };
 
 const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
 
+function JobStatusProgress({ status }: { status: string | null }) {
+  const currentIdx = STEP_ORDER.indexOf(status || 'accepted');
+  return (
+    <div className="flex items-center gap-0 mt-3 mb-4">
+      {DISPATCH_STEPS.map((step, i) => {
+        const done = i < currentIdx;
+        const active = i === currentIdx;
+        const StepIcon = step.icon;
+        return (
+          <div key={step.key} className="flex items-center flex-1 last:flex-none">
+            <div className={`flex flex-col items-center gap-1 flex-shrink-0 ${active ? '' : ''}`}>
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all ${
+                done    ? 'bg-emerald-500 border-emerald-500' :
+                active  ? 'bg-amber-400 border-amber-400' :
+                          'bg-gray-800 border-gray-700'
+              }`}>
+                <StepIcon className={`w-3.5 h-3.5 ${done || active ? 'text-gray-900' : 'text-gray-600'}`} />
+              </div>
+              <p className={`text-[10px] font-medium text-center leading-tight hidden sm:block ${
+                active ? 'text-amber-300' : done ? 'text-emerald-400' : 'text-gray-600'
+              }`}>{step.label}</p>
+            </div>
+            {i < DISPATCH_STEPS.length - 1 && (
+              <div className={`flex-1 h-0.5 mx-1 rounded-full ${i < currentIdx ? 'bg-emerald-500' : 'bg-gray-700'}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function MechanicDashboard() {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [breakdowns, setBreakdowns] = useState<BreakdownRequest[]>([]);
+  const [activeJobs, setActiveJobs] = useState<ActiveJob[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [wallet, setWallet] = useState<WalletType | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [commissions, setCommissions] = useState<Commission[]>([]);
-  const [stats, setStats] = useState({ open: 0, resolved: 0, messages: 0, pendingPayments: 0 });
+  const [stats, setStats] = useState({ active: 0, completed: 0, messages: 0 });
   const [streak, setStreak] = useState<StreakData | null>(null);
   const [rewards, setRewards] = useState<RewardData | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [openJobCount, setOpenJobCount] = useState(0);
   const [pendingOfferCount, setPendingOfferCount] = useState(0);
   const [showStreakCelebration, setShowStreakCelebration] = useState(false);
 
@@ -94,57 +145,46 @@ export default function MechanicDashboard() {
       setLoading(true);
       await updateStreak();
 
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-      const weekStartStr = weekStart.toISOString().split('T')[0];
-
-      const [bdsRes, notifRes, msgRes, pendingRes, walletRes, subRes, commissionsRes, streakRes, rewardsRes, openJobsRes, leaderboardRes] = await Promise.all([
+      const [activeJobsRes, offersRes, notifRes, msgRes, walletRes, subRes, commissionsRes, streakRes, rewardsRes, leaderboardRes, completedRes] = await Promise.all([
         supabase.from('breakdown_requests')
-          .select('*, owner:profiles!breakdown_requests_owner_id_fkey(name, avatar_url), assigned_mechanic:profiles!breakdown_requests_assigned_mechanic_id_fkey(name)')
+          .select('*, owner:profiles!breakdown_requests_owner_id_fkey(name, phone)')
           .eq('assigned_mechanic_id', profile.id)
-          .order('created_at', { ascending: false })
-          .limit(5),
+          .eq('mechanic_offer_status', 'accepted')
+          .neq('dispatch_status', 'completed')
+          .order('created_at', { ascending: false }),
+        supabase.from('breakdown_requests').select('id', { count: 'exact' })
+          .eq('assigned_mechanic_id', profile.id).eq('mechanic_offer_status', 'pending'),
         supabase.from('notifications').select('*').eq('user_id', profile.id).order('created_at', { ascending: false }).limit(5),
         supabase.from('messages').select('id', { count: 'exact' }).eq('receiver_id', profile.id).eq('is_read', false),
-        supabase.from('user_payments').select('id', { count: 'exact' }).eq('user_id', profile.id).eq('status', 'pending'),
         supabase.from('wallets').select('*').eq('user_id', profile.id).maybeSingle(),
         supabase.from('subscriptions').select('*').eq('user_id', profile.id).eq('role', 'mechanic').eq('status', 'active').maybeSingle(),
         supabase.from('commissions').select('*').eq('technician_id', profile.id).order('created_at', { ascending: false }).limit(5),
         supabase.from('mechanic_streaks').select('*').eq('mechanic_id', profile.id).maybeSingle(),
         supabase.from('mechanic_rewards').select('*').eq('mechanic_id', profile.id).maybeSingle(),
-        supabase.from('breakdown_requests').select('id', { count: 'exact' }).eq('status', 'open'),
-        supabase.from('mechanic_rewards')
-          .select('mechanic_id, total_points, weekly_points, level, jobs_completed')
-          .order('weekly_points', { ascending: false })
-          .limit(10),
+        supabase.from('mechanic_rewards').select('mechanic_id, total_points, weekly_points, level, jobs_completed').order('weekly_points', { ascending: false }).limit(10),
+        supabase.from('breakdown_requests').select('id', { count: 'exact' }).eq('assigned_mechanic_id', profile.id).eq('dispatch_status', 'completed'),
       ]);
 
-      const bds = (bdsRes.data || []) as BreakdownRequest[];
-      setBreakdowns(bds);
+      const jobs = (activeJobsRes.data || []) as ActiveJob[];
+      setActiveJobs(jobs);
+      setPendingOfferCount(offersRes.count ?? 0);
       setNotifications((notifRes.data || []) as Notification[]);
       setStats({
-        open: bds.filter(b => b.status === 'open' || b.status === 'assigned' || b.status === 'in_progress').length,
-        resolved: bds.filter(b => b.status === 'resolved').length,
+        active: jobs.length,
+        completed: completedRes.count ?? 0,
         messages: msgRes.count ?? 0,
-        pendingPayments: pendingRes.count ?? 0,
       });
       setWallet(walletRes.data || null);
       setSubscription(subRes.data || null);
       setCommissions((commissionsRes.data || []) as Commission[]);
       setStreak(streakRes.data || null);
       setRewards(rewardsRes.data || null);
-      setOpenJobCount(openJobsRes.count ?? 0);
-
-      const offersRes = await supabase.from('breakdown_requests').select('id', { count: 'exact' })
-        .eq('assigned_mechanic_id', profile.id).eq('mechanic_offer_status', 'pending');
-      setPendingOfferCount(offersRes.count ?? 0);
 
       if (leaderboardRes.data && leaderboardRes.data.length > 0) {
         const mechanicIds = leaderboardRes.data.map((e: Record<string, unknown>) => e.mechanic_id as string);
         const { data: profilesData } = await supabase.from('profiles').select('id, name, avatar_url').in('id', mechanicIds);
         const profileMap: Record<string, { name: string; avatar_url: string | null }> = {};
         (profilesData || []).forEach((p: { id: string; name: string; avatar_url: string | null }) => { profileMap[p.id] = p; });
-
         const entries: LeaderboardEntry[] = leaderboardRes.data.map((e: Record<string, unknown>, i: number) => ({
           mechanic_id: e.mechanic_id as string,
           points_earned: e.weekly_points as number,
@@ -174,7 +214,6 @@ export default function MechanicDashboard() {
   const levelProgress = rewards && nextLevel
     ? ((rewards.total_points - levelCfg.min) / (nextLevel[1].min - levelCfg.min)) * 100
     : 100;
-
   const nextMilestone = STREAK_MILESTONES.find(m => m > (streak?.current_streak ?? 0));
   const currentRank = leaderboard.findIndex(e => e.mechanic_id === profile?.id) + 1;
 
@@ -245,13 +284,35 @@ export default function MechanicDashboard() {
             </div>
           </div>
 
+          {/* Pending Job Offers — highest priority alert */}
+          {pendingOfferCount > 0 && (
+            <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
+              <Link
+                to="/breakdown/offers"
+                className="flex items-center gap-4 bg-amber-500/10 border-2 border-amber-500/60 rounded-2xl p-5 hover:bg-amber-500/15 transition-colors group"
+              >
+                <div className="w-14 h-14 bg-amber-500/20 rounded-xl flex items-center justify-center flex-shrink-0 animate-pulse">
+                  <AlertTriangle className="w-7 h-7 text-amber-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-amber-300 font-black text-xl leading-tight">
+                    {pendingOfferCount} Job Offer{pendingOfferCount > 1 ? 's' : ''} Require Your Response
+                  </p>
+                  <p className="text-amber-400/70 text-sm mt-0.5">Admin has assigned you to a breakdown repair. Review and accept or decline now.</p>
+                </div>
+                <div className="flex items-center gap-2 bg-amber-400 text-gray-900 font-bold text-sm px-4 py-2 rounded-xl group-hover:bg-amber-300 transition-colors flex-shrink-0">
+                  View Offers <ChevronRight className="w-4 h-4" />
+                </div>
+              </Link>
+            </motion.div>
+          )}
+
           {/* KPI Row */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             {[
-              { icon: Briefcase, label: 'Active Jobs', value: stats.open, color: 'text-orange-400', bg: 'bg-orange-400/10' },
-              { icon: CheckCircle, label: 'Resolved', value: stats.resolved, color: 'text-green-400', bg: 'bg-green-400/10' },
+              { icon: Briefcase, label: 'Active Jobs', value: stats.active, color: 'text-orange-400', bg: 'bg-orange-400/10' },
+              { icon: CheckCircle, label: 'Completed', value: stats.completed, color: 'text-green-400', bg: 'bg-green-400/10' },
               { icon: MessageSquare, label: 'Unread Messages', value: stats.messages, color: 'text-blue-400', bg: 'bg-blue-400/10' },
-              { icon: CreditCard, label: 'Pending Payments', value: stats.pendingPayments, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
             ].map(s => (
               <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-xl p-4">
                 <div className={`w-10 h-10 ${s.bg} rounded-lg flex items-center justify-center mb-3`}>
@@ -263,23 +324,119 @@ export default function MechanicDashboard() {
             ))}
           </div>
 
-          {pendingOfferCount > 0 && (
-            <Link to="/breakdown/offers"
-              className="flex items-center gap-4 bg-amber-500/10 border border-amber-500/40 rounded-2xl p-4 hover:bg-amber-500/15 transition-colors group">
-              <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-6 h-6 text-amber-400" />
-              </div>
-              <div className="flex-1">
-                <p className="text-amber-300 font-bold text-lg leading-tight">
-                  {pendingOfferCount} Job Offer{pendingOfferCount > 1 ? 's' : ''} Waiting
-                </p>
-                <p className="text-amber-400/70 text-sm">Admin has selected you for a breakdown repair. Accept or decline now.</p>
-              </div>
-              <ChevronRight className="w-5 h-5 text-amber-400 group-hover:translate-x-1 transition-transform" />
-            </Link>
-          )}
+          {/* Active Jobs — Core workflow section */}
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+              <h2 className="text-white font-bold flex items-center gap-2">
+                <Wrench className="w-5 h-5 text-yellow-400" />
+                Active Jobs
+                {activeJobs.length > 0 && (
+                  <span className="ml-1 text-xs bg-yellow-400 text-gray-900 px-2 py-0.5 rounded-full font-black">{activeJobs.length}</span>
+                )}
+              </h2>
+              <Link to="/breakdown/offers" className="text-yellow-400 hover:text-yellow-300 text-sm flex items-center gap-1">
+                My Offers <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
 
-          {/* Competition Section */}
+            {activeJobs.length === 0 ? (
+              <div className="py-14 text-center">
+                <Wrench className="w-12 h-12 text-gray-700 mx-auto mb-3" />
+                <p className="text-gray-400 font-semibold">No active jobs at the moment</p>
+                <p className="text-gray-600 text-sm mt-1">Job offers from the admin will appear here</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-800">
+                {activeJobs.map(job => {
+                  const locationVisible = job.dispatch_status === 'dispatched' || job.dispatch_status === 'completed' || job.owner_location_shared;
+                  return (
+                    <div key={job.id} className="p-5">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <Wrench className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                            <span className="font-bold text-white">{job.machine_type || 'Machine'} {job.machine_model || ''}</span>
+                          </div>
+                          {job.machine_serial && (
+                            <span className="text-xs text-gray-500 font-mono">SN: {job.machine_serial}</span>
+                          )}
+                        </div>
+                        {job.urgency && (
+                          <span className={`text-xs px-2 py-1 rounded-full font-semibold flex-shrink-0 ${URGENCY_COLORS[job.urgency] || URGENCY_COLORS.low}`}>
+                            {job.urgency.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-sm text-gray-400 line-clamp-2 mb-1">{job.description}</p>
+
+                      <JobStatusProgress status={job.dispatch_status} />
+
+                      {/* Status-specific message */}
+                      {job.dispatch_status === 'accepted' && (
+                        <div className="bg-blue-950/30 border border-blue-800/30 rounded-xl p-3 text-sm text-blue-300 mb-3">
+                          Admin is preparing a formal quotation for the owner. Stand by.
+                        </div>
+                      )}
+                      {job.dispatch_status === 'quote_sent' && (
+                        <div className="bg-blue-950/30 border border-blue-800/30 rounded-xl p-3 text-sm text-blue-300 mb-3">
+                          Quote sent to owner. Waiting for owner to approve and pay.
+                        </div>
+                      )}
+                      {job.dispatch_status === 'paid' && (
+                        <div className="bg-emerald-950/30 border border-emerald-800/30 rounded-xl p-3 text-sm text-emerald-300 mb-3">
+                          Owner has paid. Admin will dispatch you shortly. Stand by for confirmation.
+                        </div>
+                      )}
+
+                      {/* Dispatched — show location and contact */}
+                      {job.dispatch_status === 'dispatched' && locationVisible && (
+                        <div className="bg-teal-950/40 border border-teal-800/40 rounded-xl p-4 mb-3">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Navigation className="w-4 h-4 text-teal-400" />
+                            <p className="text-teal-300 font-bold text-sm">Head to Site Now</p>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                              <span className="text-white font-semibold text-sm">{job.location || '—'}</span>
+                            </div>
+                            {job.owner && (
+                              <div className="flex items-center gap-2">
+                                <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                <span className="text-gray-300 text-sm">{job.owner.name}</span>
+                              </div>
+                            )}
+                            {job.owner?.phone && (
+                              <a
+                                href={`tel:${job.owner.phone}`}
+                                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors mt-1"
+                              >
+                                <Phone className="w-4 h-4" />
+                                Call Owner: {job.owner.phone}
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between text-xs text-gray-600">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatDistanceToNow(new Date(job.created_at), { addSuffix: true })}
+                        </span>
+                        {job.quote_amount && (
+                          <span className="text-emerald-400 font-bold text-sm">{job.quote_amount.toLocaleString()} ETB</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Gamification Row */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
             {/* Streak Card */}
@@ -290,9 +447,7 @@ export default function MechanicDashboard() {
                   <h3 className="text-white font-bold">Daily Streak</h3>
                 </div>
                 {streak && streak.current_streak >= 3 && (
-                  <span className="text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-full font-semibold">
-                    On fire!
-                  </span>
+                  <span className="text-xs bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-full font-semibold">On fire!</span>
                 )}
               </div>
               <div className="flex items-end gap-3 mb-4">
@@ -306,10 +461,7 @@ export default function MechanicDashboard() {
               </div>
               <div className="flex gap-1 mb-3">
                 {Array.from({ length: 7 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`flex-1 h-2 rounded-full ${i < (streak?.current_streak ?? 0) % 7 || (streak?.current_streak ?? 0) >= 7 ? 'bg-orange-400' : 'bg-gray-800'}`}
-                  />
+                  <div key={i} className={`flex-1 h-2 rounded-full ${i < (streak?.current_streak ?? 0) % 7 || (streak?.current_streak ?? 0) >= 7 ? 'bg-orange-400' : 'bg-gray-800'}`} />
                 ))}
               </div>
               {nextMilestone && (
@@ -336,7 +488,6 @@ export default function MechanicDashboard() {
               </div>
               <p className={`text-4xl font-black mb-1 ${levelCfg.color}`}>{rewards?.total_points ?? 0}</p>
               <p className="text-gray-500 text-sm mb-4">total points</p>
-
               {nextLevel && (
                 <>
                   <div className="flex justify-between text-xs text-gray-400 mb-1">
@@ -349,17 +500,16 @@ export default function MechanicDashboard() {
                       animate={{ width: `${Math.min(levelProgress, 100)}%` }}
                       transition={{ duration: 1.2, ease: 'easeOut' }}
                       className={`h-full rounded-full bg-gradient-to-r ${
-                        rewards?.level === 'master' ? 'from-yellow-400 to-amber-300' :
-                        rewards?.level === 'expert' ? 'from-orange-400 to-red-400' :
-                        rewards?.level === 'pro' ? 'from-blue-400 to-cyan-400' :
+                        rewards?.level === 'master'  ? 'from-yellow-400 to-amber-300' :
+                        rewards?.level === 'expert'  ? 'from-orange-400 to-red-400' :
+                        rewards?.level === 'pro'     ? 'from-blue-400 to-cyan-400' :
                         rewards?.level === 'skilled' ? 'from-green-400 to-emerald-300' :
-                        'from-gray-500 to-gray-400'
+                                                       'from-gray-500 to-gray-400'
                       }`}
                     />
                   </div>
                 </>
               )}
-
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div className="bg-gray-900/40 rounded-xl py-2">
                   <p className="text-white font-bold text-sm">{rewards?.jobs_completed ?? 0}</p>
@@ -372,42 +522,34 @@ export default function MechanicDashboard() {
               </div>
             </div>
 
-            {/* Open Jobs Alert */}
-            <div className={`rounded-2xl border p-5 ${openJobCount > 0 ? 'bg-blue-950/20 border-blue-800/40' : 'bg-gray-900 border-gray-800'}`}>
+            {/* Earnings Summary */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <Target className={`w-5 h-5 ${openJobCount > 0 ? 'text-blue-400' : 'text-gray-600'}`} />
-                  <h3 className="text-white font-bold">Job Opportunities</h3>
+                  <BarChart3 className="w-5 h-5 text-green-400" />
+                  <h3 className="text-white font-bold">Earnings</h3>
                 </div>
-                {openJobCount > 0 && (
-                  <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded-full font-bold animate-pulse">
-                    LIVE
-                  </span>
-                )}
+                <Link to="/commissions" className="text-xs text-green-400 hover:text-green-300 flex items-center gap-0.5">
+                  View all <ArrowRight className="w-3 h-3" />
+                </Link>
               </div>
-              <p className={`text-5xl font-black mb-1 ${openJobCount > 0 ? 'text-blue-400' : 'text-gray-600'}`}>
-                {openJobCount}
-              </p>
-              <p className="text-gray-500 text-sm mb-4">open breakdown{openJobCount !== 1 ? 's' : ''} right now</p>
-
-              <div className="space-y-2 mb-4">
-                {[
-                  { label: 'Earn 10 pts per job', icon: Zap, color: 'text-yellow-400' },
-                  { label: 'Climb the leaderboard', icon: TrendingUp, color: 'text-green-400' },
-                  { label: 'Build your streak', icon: Flame, color: 'text-orange-400' },
-                ].map(item => (
-                  <div key={item.label} className="flex items-center gap-2">
-                    <item.icon className={`w-3.5 h-3.5 ${item.color} flex-shrink-0`} />
-                    <p className="text-gray-400 text-xs">{item.label}</p>
-                  </div>
-                ))}
+              <p className="text-4xl font-black text-green-400 mb-1">{totalEarnings.toLocaleString()}</p>
+              <p className="text-gray-500 text-sm mb-4">ETB net earnings</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-800/50 rounded-xl p-3">
+                  <p className="text-white font-bold text-sm">{wallet?.balance?.toLocaleString() ?? 0}</p>
+                  <p className="text-gray-500 text-xs">Wallet (ETB)</p>
+                </div>
+                <div className="bg-gray-800/50 rounded-xl p-3">
+                  <p className="text-gray-400 font-bold text-sm">{totalCommissionPaid.toLocaleString()}</p>
+                  <p className="text-gray-500 text-xs">Commission paid</p>
+                </div>
               </div>
-
               <Link
-                to="/jobs"
-                className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl text-sm transition-colors w-full"
+                to="/wallet"
+                className="mt-3 flex items-center justify-center gap-2 border border-gray-700 hover:border-green-700 text-gray-300 hover:text-green-400 font-medium py-2 rounded-xl text-sm transition-colors"
               >
-                <Briefcase className="w-4 h-4" /> Browse Jobs Now
+                <Wallet className="w-4 h-4" /> View Wallet
               </Link>
             </div>
           </div>
@@ -437,7 +579,7 @@ export default function MechanicDashboard() {
                   return (
                     <div key={entry.mechanic_id} className={`px-5 py-3.5 flex items-center gap-4 transition-colors ${isMe ? 'bg-yellow-400/5 border-l-2 border-yellow-400' : 'hover:bg-gray-800/50'}`}>
                       <span className={`text-lg font-black w-7 text-right flex-shrink-0 ${rankColors[i] ?? 'text-gray-600'}`}>
-                        {i < 3 ? ['🥇','🥈','🥉'][i] : `#${i + 1}`}
+                        {i < 3 ? ['🥇', '🥈', '🥉'][i] : `#${i + 1}`}
                       </span>
                       <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0 overflow-hidden">
                         {entry.mechanic_avatar ? (
@@ -466,83 +608,7 @@ export default function MechanicDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
 
-              {/* Assigned Jobs */}
-              <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-                  <h2 className="text-white font-semibold">Assigned Jobs</h2>
-                  <Link to="/jobs" className="text-yellow-400 hover:text-yellow-300 text-sm flex items-center gap-1">
-                    Browse all <ChevronRight className="w-4 h-4" />
-                  </Link>
-                </div>
-                {breakdowns.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <Wrench className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-                    <p className="text-gray-400">No assigned jobs yet</p>
-                    <Link to="/jobs" className="mt-3 inline-block text-yellow-400 hover:text-yellow-300 text-sm">
-                      Browse available jobs
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-800">
-                    {breakdowns.map(bd => (
-                      <div key={bd.id} className="px-5 py-4 hover:bg-gray-800/50 transition-colors">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-white font-medium truncate">{bd.machine_model} — {bd.machine_type}</p>
-                            <p className="text-gray-400 text-sm mt-0.5 line-clamp-1">{bd.description}</p>
-                            <div className="flex items-center gap-2 mt-2">
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${STATUS_COLORS[bd.status]}`}>{bd.status.replace('_', ' ')}</span>
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${URGENCY_COLORS[bd.urgency]}`}>{bd.urgency}</span>
-                            </div>
-                          </div>
-                          <p className="text-gray-500 text-xs flex-shrink-0">{format(new Date(bd.created_at), 'MMM d')}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Recent Commissions */}
-              {commissions.length > 0 && (
-                <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-                  <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-                    <h2 className="text-white font-semibold flex items-center gap-2">
-                      <BarChart3 className="w-4 h-4 text-green-400" />
-                      Recent Commissions
-                    </h2>
-                    <Link to="/commissions" className="text-yellow-400 hover:text-yellow-300 text-sm flex items-center gap-1">
-                      View all <ChevronRight className="w-4 h-4" />
-                    </Link>
-                  </div>
-                  <div className="px-5 py-3 grid grid-cols-2 gap-4 border-b border-gray-800">
-                    <div>
-                      <p className="text-2xl font-black text-green-400">{totalEarnings.toLocaleString()} ETB</p>
-                      <p className="text-gray-500 text-xs mt-0.5">Net earnings</p>
-                    </div>
-                    <div>
-                      <p className="text-2xl font-black text-gray-400">{totalCommissionPaid.toLocaleString()} ETB</p>
-                      <p className="text-gray-500 text-xs mt-0.5">Commission paid</p>
-                    </div>
-                  </div>
-                  <div className="divide-y divide-gray-800">
-                    {commissions.slice(0, 3).map(c => (
-                      <div key={c.id} className="px-5 py-3 flex items-center justify-between">
-                        <div>
-                          <p className="text-gray-300 text-sm font-medium">Job #{c.breakdown_request_id.slice(0, 8)}</p>
-                          <p className="text-gray-500 text-xs mt-0.5">{c.commission_rate}% commission · {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-green-400 font-bold text-sm">{(c.job_amount - c.commission_amount).toLocaleString()} ETB</p>
-                          <p className="text-gray-600 text-xs">-{c.commission_amount.toLocaleString()} ETB</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Reward points how-to */}
+              {/* How to earn points */}
               <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
                 <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
                   <Star className="w-4 h-4 text-yellow-400" />
@@ -588,22 +654,10 @@ export default function MechanicDashboard() {
                 </p>
               </div>
 
-              {/* Wallet */}
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <Wallet className="w-5 h-5 text-blue-400" />
-                  <Link to="/wallet" className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-0.5">
-                    Add Credits <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </div>
-                <p className="text-lg font-bold text-white">{(wallet?.balance ?? profile?.wallet_balance ?? 0).toLocaleString()} ETB</p>
-                <p className="text-gray-500 text-sm mt-0.5">Wallet balance</p>
-              </div>
-
               {/* Notifications */}
               <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-                  <h2 className="text-white font-semibold text-sm">Notifications</h2>
+                  <h2 className="text-white font-semibold text-sm">Recent Notifications</h2>
                   <Link to="/notifications">
                     <Bell className="w-4 h-4 text-gray-500 hover:text-gray-300 transition-colors" />
                   </Link>
@@ -636,13 +690,13 @@ export default function MechanicDashboard() {
                 <h3 className="text-white font-semibold text-sm mb-3">Quick Actions</h3>
                 <div className="space-y-1.5">
                   {[
-                    { label: 'Browse Jobs', icon: Briefcase, to: '/jobs', accent: true },
+                    { label: 'My Job Offers', icon: Briefcase, to: '/breakdown/offers', accent: true },
                     { label: 'My Wallet', icon: Wallet, to: '/wallet' },
-                    { label: 'My Earnings', icon: TrendingUp, to: '/commissions' },
+                    { label: 'Earnings', icon: TrendingUp, to: '/commissions' },
                     { label: 'Messages', icon: MessageSquare, to: '/messages', badge: stats.messages },
                     { label: 'Subscription', icon: Crown, to: '/subscription' },
                     { label: 'Update Profile', icon: Star, to: '/profile' },
-                    { label: 'Browse Parts', icon: Package, to: '/marketplace/parts' },
+                    { label: 'Spare Parts', icon: Package, to: '/marketplace/parts' },
                   ].map(a => (
                     <Link
                       key={a.label}

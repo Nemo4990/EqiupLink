@@ -17,7 +17,6 @@ import EmailVerificationSent from './pages/auth/EmailVerificationSent';
 import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
 import Dashboard from './pages/dashboard/Dashboard';
-import Mechanics from './pages/marketplace/Mechanics';
 import Parts from './pages/marketplace/Parts';
 import Rentals from './pages/marketplace/Rentals';
 import BreakdownList from './pages/breakdown/BreakdownList';
@@ -140,7 +139,6 @@ function AppContent() {
         <Route path="/dashboard/owner" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/dashboard/supplier" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 
-        <Route path="/marketplace/mechanics" element={<Mechanics />} />
         <Route path="/marketplace/parts" element={<Parts />} />
         <Route path="/marketplace/rentals" element={<Rentals />} />
         <Route path="/mechanic/:userId" element={<MechanicDetail />} />

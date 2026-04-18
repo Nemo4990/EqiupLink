@@ -222,15 +222,25 @@ export default function JobDispatch() {
         .eq('id', selected.id);
       if (error) throw error;
 
-      await supabase.from('notifications').insert({
-        user_id: selected.owner_id,
-        type: 'breakdown_quote',
-        title: 'Price Quote Ready',
-        message: `Your breakdown request has a verified quote of ETB ${amount.toLocaleString()}. Review, download the quote, and approve to dispatch a technician.`,
-        data: { breakdown_id: selected.id, amount },
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      await fetch(`${supabaseUrl}/functions/v1/send-quote-notification`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          breakdown_id: selected.id,
+          owner_id: selected.owner_id,
+          quote_amount: amount,
+          quote_expires_at: expiresAt,
+          machine_type: selected.machine_type,
+          machine_model: selected.machine_model,
+          location: selected.location,
+          urgency: selected.urgency,
+          admin_note: quoteDescription.trim(),
+        }),
       });
 
-      toast.success('Quote sent to owner');
+      toast.success('Quote sent to owner via email and in-app notification');
       setSelected(null);
       await loadRows();
     } catch (err) {

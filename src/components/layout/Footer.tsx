@@ -22,7 +22,6 @@ const DEFAULTS: ContactSettings = {
 };
 
 const MARKETPLACE_LINKS = [
-  { label: 'Find Mechanics', to: '/marketplace/mechanics' },
   { label: 'Spare Parts', to: '/marketplace/parts' },
   { label: 'Equipment Rentals', to: '/marketplace/rentals' },
   { label: 'Post Breakdown', to: '/breakdown' },
