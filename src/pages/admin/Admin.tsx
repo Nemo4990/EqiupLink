@@ -17,6 +17,7 @@ import {
   ArrowRight,
   FileText,
   Settings,
+  CreditCard,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -174,6 +175,15 @@ export default function Admin() {
       icon: Database,
       accent: 'from-slate-500/20 to-slate-600/5',
       ring: 'border-slate-700/40 hover:border-slate-500',
+    },
+    {
+      key: 'payments',
+      title: 'Payment Approvals',
+      description: 'Review and approve user wallet top-up payments and manual bank transfers.',
+      to: '/admin/payments',
+      icon: CreditCard,
+      accent: 'from-yellow-500/20 to-yellow-600/5',
+      ring: 'border-yellow-700/40 hover:border-yellow-500',
     },
   ];
 

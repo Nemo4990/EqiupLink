@@ -61,6 +61,7 @@ import AdminListingsPage from './pages/admin/AdminListingsPage';
 import QuoteReview from './pages/owner/QuoteReview';
 import BreakdownOffers from './pages/breakdown/BreakdownOffers';
 import PMKits from './pages/admin/PMKits';
+import PaymentApproval from './pages/admin/PaymentApproval';
 
 function IdleWarningModal() {
   const { idleWarning, idleSecondsLeft, resetIdleTimer, signOut } = useAuth();
@@ -171,6 +172,7 @@ function AppContent() {
         <Route path="/admin/demo-data" element={<ProtectedRoute requiredRole="admin"><DemoData /></ProtectedRoute>} />
         <Route path="/admin/listings" element={<ProtectedRoute requiredRole="admin"><AdminListingsPage /></ProtectedRoute>} />
         <Route path="/admin/pm-kits" element={<ProtectedRoute requiredRole="admin"><PMKits /></ProtectedRoute>} />
+        <Route path="/admin/payments" element={<ProtectedRoute requiredRole="admin"><PaymentApproval /></ProtectedRoute>} />
         <Route path="/owner/quote/:id" element={<ProtectedRoute><QuoteReview /></ProtectedRoute>} />
         <Route path="/breakdown/offers" element={<ProtectedRoute><BreakdownOffers /></ProtectedRoute>} />
         <Route path="/forum" element={<ForumList />} />
