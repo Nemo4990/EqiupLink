@@ -217,7 +217,7 @@ export default function JobDispatch() {
           quote_expires_at: expiresAt,
           dispatch_status: 'quote_sent',
           quote_sent_at: new Date().toISOString(),
-          status: 'quoted',
+          status: 'in_progress',
         })
         .eq('id', selected.id);
       if (error) throw error;
