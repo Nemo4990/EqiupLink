@@ -16,6 +16,7 @@ import {
   Activity,
   ArrowRight,
   FileText,
+  Settings,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -155,6 +156,15 @@ export default function Admin() {
       icon: Package,
       accent: 'from-orange-500/20 to-orange-600/5',
       ring: 'border-orange-700/40 hover:border-orange-500',
+    },
+    {
+      key: 'pm-kits',
+      title: 'PM Kits Manager',
+      description: 'Add and manage preventive maintenance kits shown on the owner dashboard.',
+      to: '/admin/pm-kits',
+      icon: Settings,
+      accent: 'from-cyan-500/20 to-cyan-600/5',
+      ring: 'border-cyan-700/40 hover:border-cyan-500',
     },
     {
       key: 'demo',

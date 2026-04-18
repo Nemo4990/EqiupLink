@@ -59,6 +59,7 @@ export default function Navbar() {
 
   const isLanding = location.pathname === '/';
   const navBg = scrolled || !isLanding ? 'bg-gray-950 shadow-lg' : 'bg-transparent';
+  const isOwner = profile?.role === 'owner' || profile?.role === 'customer';
 
   const LangToggle = ({ compact = false }: { compact?: boolean }) => (
     <button
@@ -91,7 +92,7 @@ export default function Navbar() {
             </Link>
 
             <div className="hidden md:flex items-center gap-6">
-              <Link to="/marketplace/mechanics" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.findMechanics}</Link>
+              {!isOwner && <Link to="/marketplace/mechanics" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.findMechanics}</Link>}
               <Link to="/marketplace/parts" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.spareParts}</Link>
               <Link to="/marketplace/rentals" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.rentals}</Link>
               <Link to="/breakdown" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.breakdown}</Link>
