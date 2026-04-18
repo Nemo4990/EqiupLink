@@ -40,7 +40,7 @@ export default function BottomNav({ unreadCount }: BottomNavProps) {
           label: t.bottomNav.browse,
           matchPaths: isOwner ? ['/marketplace/parts', '/marketplace/rentals'] : ['/marketplace', '/search'],
         },
-        ...(isMechanic ? [{ to: '/jobs', icon: Briefcase, label: t.bottomNav.jobs, matchPaths: ['/jobs'] }] : []),
+        ...(isMechanic ? [{ to: '/breakdown/offers', icon: Briefcase, label: 'Job Offers', matchPaths: ['/breakdown/offers'] }] : []),
         ...(isOwner ? [{ to: '/my-requests', icon: Briefcase, label: t.bottomNav.requests, matchPaths: ['/my-requests', '/requests'] }] : []),
         { to: '/messages', icon: MessageSquare, label: t.bottomNav.messages, matchPaths: ['/messages'] },
         { to: '/notifications', icon: Bell, label: t.bottomNav.alerts, matchPaths: ['/notifications'], badge: unreadCount },

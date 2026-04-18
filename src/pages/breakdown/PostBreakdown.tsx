@@ -37,6 +37,12 @@ export default function PostBreakdown() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (profile?.role === 'mechanic' || profile?.role === 'technician') {
+      navigate('/breakdown/offers', { replace: true });
+    }
+  }, [profile, navigate]);
+
+  useEffect(() => {
     if (user && profile?.role !== 'admin') {
       Promise.all([
         supabase

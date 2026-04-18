@@ -28,6 +28,12 @@ export default function BreakdownList() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [requests, setRequests] = useState<BreakdownRequest[]>([]);
+
+  useEffect(() => {
+    if (profile?.role === 'mechanic' || profile?.role === 'technician') {
+      navigate('/breakdown/offers', { replace: true });
+    }
+  }, [profile, navigate]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'open' | 'my'>('all');
   const [mechHasPaid, setMechHasPaid] = useState(false);

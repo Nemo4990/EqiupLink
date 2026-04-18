@@ -94,7 +94,9 @@ export default function Navbar() {
             <div className="hidden md:flex items-center gap-6">
               <Link to="/marketplace/parts" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.spareParts}</Link>
               <Link to="/marketplace/rentals" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.rentals}</Link>
-              <Link to="/breakdown" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.breakdown}</Link>
+              {!(profile?.role === 'mechanic' || profile?.role === 'technician') && (
+                <Link to="/breakdown" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.breakdown}</Link>
+              )}
               <Link to="/forum" className="text-gray-300 hover:text-yellow-400 transition-colors text-sm font-medium">{t.nav.forum}</Link>
               <Link to="/ai-diagnose" className="text-gray-300 hover:text-teal-400 transition-colors text-sm font-medium flex items-center gap-1">
                 <Bot className="w-3.5 h-3.5" />{t.nav.aiDiagnose}
@@ -109,7 +111,7 @@ export default function Navbar() {
               {user ? (
                 <>
                   {(profile?.role === 'mechanic' || profile?.role === 'technician') && (
-                    <Link to="/jobs" className="text-gray-300 hover:text-yellow-400 transition-colors p-2" title={t.nav.jobs}>
+                    <Link to="/breakdown/offers" className="text-gray-300 hover:text-yellow-400 transition-colors p-2" title="Job Offers">
                       <Briefcase className="w-5 h-5" />
                     </Link>
                   )}
