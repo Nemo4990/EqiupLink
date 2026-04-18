@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import {
   ArrowLeft, Search, ShieldCheck, Send, AlertTriangle, MapPin,
   Wrench, Clock, User, CheckCircle2, Filter, Phone, RefreshCw,
-  XCircle, CheckCircle, Zap,
+  XCircle, CheckCircle, Zap, Calendar,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -27,6 +27,7 @@ interface BreakdownRow {
   quote_amount: number | null;
   quote_description: string | null;
   quote_sent_at: string | null;
+  quote_expires_at: string | null;
   created_at: string;
   owner?: { name: string | null; phone: string | null };
   mechanic?: { name: string | null };
@@ -75,8 +76,9 @@ export default function JobDispatch() {
   const [chosenMechanic, setChosenMechanic] = useState<string | null>(null);
   const [quoteAmount, setQuoteAmount] = useState('');
   const [quoteDescription, setQuoteDescription] = useState('');
+  const [quoteExpiry, setQuoteExpiry] = useState('');
   const [sending, setSending] = useState(false);
-  const [step, setStep] = useState<'offer' | 'quote'>('offer');
+  const [modalStep, setModalStep] = useState<'select_mechanic' | 'awaiting_response' | 'send_quote'>('select_mechanic');
 
   useEffect(() => { void loadRows(); }, [activeTab]);
 
@@ -103,8 +105,16 @@ export default function JobDispatch() {
     setChosenMechanic(row.assigned_mechanic_id);
     setQuoteAmount(row.quote_amount ? String(row.quote_amount) : '');
     setQuoteDescription(row.quote_description || '');
-    setStep(row.mechanic_offer_status === 'accepted' ? 'quote' : 'offer');
+    setQuoteExpiry(row.quote_expires_at ? row.quote_expires_at.slice(0, 10) : '');
     setMechSearch('');
+
+    if (row.mechanic_offer_status === 'accepted') {
+      setModalStep('send_quote');
+    } else if (row.mechanic_offer_status === 'pending') {
+      setModalStep('awaiting_response');
+    } else {
+      setModalStep('select_mechanic');
+    }
 
     const { data, error } = await supabase
       .from('mechanic_profiles')
@@ -193,13 +203,18 @@ export default function JobDispatch() {
     const amount = parseFloat(quoteAmount);
     if (!amount || amount <= 0) { toast.error('Enter a valid quote amount'); return; }
     if (!quoteDescription.trim()) { toast.error('Add a quote description'); return; }
+    if (!quoteExpiry) { toast.error('Set a quote expiration date'); return; }
+
     setSending(true);
     try {
+      const expiresAt = new Date(quoteExpiry + 'T23:59:59').toISOString();
+
       const { error } = await supabase
         .from('breakdown_requests')
         .update({
           quote_amount: amount,
           quote_description: quoteDescription.trim(),
+          quote_expires_at: expiresAt,
           dispatch_status: 'quote_sent',
           quote_sent_at: new Date().toISOString(),
           status: 'quoted',
@@ -211,7 +226,7 @@ export default function JobDispatch() {
         user_id: selected.owner_id,
         type: 'breakdown_quote',
         title: 'Price Quote Ready',
-        message: `Your breakdown request has a quote of ETB ${amount.toLocaleString()}. Review and approve to dispatch a technician.`,
+        message: `Your breakdown request has a verified quote of ETB ${amount.toLocaleString()}. Review, download the quote, and approve to dispatch a technician.`,
         data: { breakdown_id: selected.id, amount },
       });
 
@@ -245,6 +260,7 @@ export default function JobDispatch() {
       const { error } = await supabase.from('breakdown_requests').update({
         dispatch_status: 'dispatched',
         dispatched_at: new Date().toISOString(),
+        owner_location_shared: true,
         status: 'in_progress',
       }).eq('id', row.id);
       if (error) throw error;
@@ -252,19 +268,19 @@ export default function JobDispatch() {
       const notifs: any[] = [{
         user_id: row.owner_id, type: 'breakdown_dispatched',
         title: 'Mechanic Deployed',
-        message: 'A verified technician has been dispatched to your site.',
+        message: 'A verified technician has been dispatched to your site. You can track status from your dashboard.',
         data: { breakdown_id: row.id },
       }];
       if (row.assigned_mechanic_id) {
         notifs.push({
-          user_id: row.assigned_mechanic_id, type: 'job_assigned',
+          user_id: row.assigned_mechanic_id, type: 'job_dispatched',
           title: 'Job Confirmed — Head to Site',
-          message: 'The owner has paid. You are confirmed for this job.',
-          data: { breakdown_id: row.id },
+          message: `The owner has paid. Site location: ${row.location || 'See job details'}. Contact details are now available in the app.`,
+          data: { breakdown_id: row.id, location: row.location },
         });
       }
       await supabase.from('notifications').insert(notifs);
-      toast.success('Marked as dispatched');
+      toast.success('Marked as dispatched — location shared with mechanic');
       await loadRows();
     } catch (err) {
       console.error(err);
@@ -272,10 +288,11 @@ export default function JobDispatch() {
     }
   }
 
-  function getMechanicPhone(row: BreakdownRow): string | null {
-    if (!chosenMechanicData) return null;
-    return chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone || null;
-  }
+  const defaultExpiry = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().slice(0, 10);
+  };
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -374,7 +391,7 @@ export default function JobDispatch() {
                       <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-emerald-300 font-semibold">{row.mechanic.name} accepted the job</p>
-                        <p className="text-xs text-gray-400">Now send a quote to the owner</p>
+                        <p className="text-xs text-gray-400">Ready to send quote to owner</p>
                       </div>
                     </div>
                   )}
@@ -392,11 +409,15 @@ export default function JobDispatch() {
                             className="flex-1 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-sm py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
                             <Send className="w-4 h-4" /> Send Quote to Owner
                           </button>
+                        ) : row.mechanic_offer_status === 'pending' ? (
+                          <button onClick={() => openTicket(row)}
+                            className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-bold text-sm py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+                            <Clock className="w-4 h-4" /> Waiting for Mechanic
+                          </button>
                         ) : (
                           <button onClick={() => openTicket(row)}
                             className="flex-1 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-sm py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
-                            <Zap className="w-4 h-4" />
-                            {row.mechanic_offer_status === 'pending' ? 'View Offer' : 'Assign & Offer'}
+                            <Zap className="w-4 h-4" /> Assign Mechanic
                           </button>
                         )}
                       </>
@@ -409,8 +430,8 @@ export default function JobDispatch() {
                     )}
                     {activeTab === 'paid' && (
                       <button onClick={() => markDispatched(row)}
-                        className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-gray-900 font-bold text-sm py-2.5 rounded-xl transition-colors">
-                        Mark Dispatched
+                        className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-gray-900 font-bold text-sm py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+                        <Zap className="w-4 h-4" /> Deploy Mechanic
                       </button>
                     )}
                     {(activeTab === 'dispatched' || activeTab === 'completed') && row.mechanic?.name && (
@@ -431,14 +452,40 @@ export default function JobDispatch() {
           <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
             className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
 
-            <div className="sticky top-0 bg-gray-900 border-b border-gray-800 p-5 flex items-center justify-between">
+            <div className="sticky top-0 bg-gray-900 border-b border-gray-800 p-5 flex items-center justify-between z-10">
               <div>
                 <h2 className="text-xl font-black">
-                  {step === 'offer' ? 'Assign & Send Job Offer' : 'Send Quote to Owner'}
+                  {modalStep === 'select_mechanic' && 'Step 1: Assign Mechanic'}
+                  {modalStep === 'awaiting_response' && 'Step 1: Awaiting Mechanic Response'}
+                  {modalStep === 'send_quote' && 'Step 2: Send Quote to Owner'}
                 </h2>
                 <p className="text-xs text-gray-500 font-mono">#{selected.id.slice(0, 8)}</p>
               </div>
               <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-white">Close</button>
+            </div>
+
+            <div className="px-5 pt-4 pb-2">
+              <div className="flex items-center gap-0">
+                {['Assign Mechanic', 'Mechanic Accepts', 'Send Quote'].map((label, idx) => {
+                  const stepMap = ['select_mechanic', 'awaiting_response', 'send_quote'];
+                  const currentIdx = stepMap.indexOf(modalStep);
+                  const done = idx < currentIdx;
+                  const active = idx === currentIdx;
+                  return (
+                    <div key={label} className="flex items-center flex-1">
+                      <div className="flex flex-col items-center flex-1">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                          done ? 'bg-emerald-500 text-white' : active ? 'bg-amber-500 text-gray-900' : 'bg-gray-800 text-gray-500'
+                        }`}>
+                          {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : idx + 1}
+                        </div>
+                        <span className={`text-[10px] mt-1 ${done ? 'text-emerald-400' : active ? 'text-white' : 'text-gray-500'}`}>{label}</span>
+                      </div>
+                      {idx < 2 && <div className={`h-0.5 w-full ${done ? 'bg-emerald-500' : 'bg-gray-800'}`} />}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="p-5 space-y-5">
@@ -461,14 +508,23 @@ export default function JobDispatch() {
                 </div>
               </div>
 
-              {step === 'offer' && selected.mechanic_offer_status === 'pending' && (
-                <div className="bg-amber-950/40 border border-amber-800/40 rounded-xl p-4 text-center">
-                  <p className="text-amber-300 font-semibold">Job offer sent — waiting for mechanic to respond.</p>
-                  <p className="text-xs text-gray-400 mt-1">The mechanic will receive an email and in-app notification to accept or decline.</p>
+              {modalStep === 'awaiting_response' && (
+                <div className="bg-amber-950/40 border border-amber-800/40 rounded-xl p-5 text-center">
+                  <Clock className="w-8 h-8 text-amber-400 mx-auto mb-3 animate-pulse" />
+                  <p className="text-amber-300 font-semibold text-lg">Waiting for Mechanic to Respond</p>
+                  <p className="text-gray-400 text-sm mt-2">
+                    An email and in-app notification have been sent. The mechanic can accept or decline the offer.
+                  </p>
+                  {chosenMechanicData && (
+                    <div className="mt-4 bg-gray-900 border border-gray-800 rounded-lg p-3 inline-block">
+                      <p className="text-white font-semibold">{chosenMechanicData.name}</p>
+                      <p className="text-gray-500 text-xs">{chosenMechanicData.location}</p>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {step === 'offer' && selected.mechanic_offer_status !== 'pending' && (
+              {modalStep === 'select_mechanic' && (
                 <div>
                   <label className="block text-sm font-semibold mb-2">Select Technician</label>
                   <div className="relative mb-3">
@@ -527,63 +583,53 @@ export default function JobDispatch() {
                 </div>
               )}
 
-              {step === 'offer' && selected.mechanic_offer_status === 'accepted' && (
-                <div className="bg-emerald-950/40 border border-emerald-800/40 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <CheckCircle className="w-5 h-5 text-emerald-400" />
-                    <p className="text-emerald-300 font-semibold">Mechanic accepted the job offer</p>
-                  </div>
-                  {chosenMechanicData && (
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <p className="text-white font-semibold">{chosenMechanicData.name}</p>
+              {modalStep === 'send_quote' && (
+                <>
+                  <div className="bg-emerald-950/40 border border-emerald-800/40 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="w-5 h-5 text-emerald-400" />
+                      <p className="text-emerald-300 font-semibold">Mechanic accepted the job offer</p>
+                    </div>
+                    {chosenMechanicData && (
+                      <div className="flex items-center justify-between mt-2">
+                        <div>
+                          <p className="text-white font-semibold">{chosenMechanicData.name}</p>
+                          <p className="text-gray-500 text-xs">{chosenMechanicData.location}</p>
+                        </div>
                         {(chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone) && (
-                          <a
-                            href={`tel:${chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone}`}
-                            className="inline-flex items-center gap-2 mt-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
-                            <Phone className="w-4 h-4" />
-                            Call: {chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone}
+                          <a href={`tel:${chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone}`}
+                            className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors">
+                            <Phone className="w-3.5 h-3.5" />
+                            Call Mechanic
                           </a>
                         )}
                       </div>
-                    </div>
-                  )}
-                  <button onClick={() => setStep('quote')}
-                    className="w-full mt-4 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
-                    <Send className="w-4 h-4" /> Proceed to Send Quote to Owner
-                  </button>
-                </div>
-              )}
+                    )}
+                  </div>
 
-              {step === 'quote' && (
-                <>
-                  {chosenMechanicData && (
-                    <div className="bg-gray-950 border border-gray-800 rounded-xl p-3 flex items-center justify-between">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <p className="text-xs text-gray-500">Assigned Technician</p>
-                        <p className="text-white font-semibold">{chosenMechanicData.name}</p>
+                        <label className="block text-sm font-semibold mb-2">Quote Amount (ETB)</label>
+                        <input type="number" value={quoteAmount} onChange={(e) => setQuoteAmount(e.target.value)}
+                          placeholder="e.g. 15000"
+                          className="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm focus:outline-none focus:border-amber-500" />
                       </div>
-                      {(chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone) && (
-                        <a href={`tel:${chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone}`}
-                          className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors">
-                          <Phone className="w-3.5 h-3.5" />
-                          Call Mechanic
-                        </a>
-                      )}
+                      <div>
+                        <label className="block text-sm font-semibold mb-2">
+                          <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> Quote Expires On</span>
+                        </label>
+                        <input type="date" value={quoteExpiry || defaultExpiry()} onChange={(e) => setQuoteExpiry(e.target.value)}
+                          min={new Date().toISOString().slice(0, 10)}
+                          className="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm focus:outline-none focus:border-amber-500" />
+                      </div>
                     </div>
-                  )}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="md:col-span-1">
-                      <label className="block text-sm font-semibold mb-2">Quote Amount (ETB)</label>
-                      <input type="number" value={quoteAmount} onChange={(e) => setQuoteAmount(e.target.value)}
-                        placeholder="0"
-                        className="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm focus:outline-none focus:border-amber-500" />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-semibold mb-2">Quote Description</label>
-                      <input value={quoteDescription} onChange={(e) => setQuoteDescription(e.target.value)}
-                        placeholder="Diagnosis, parts, labor estimate..."
-                        className="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm focus:outline-none focus:border-amber-500" />
+                    <div>
+                      <label className="block text-sm font-semibold mb-2">Scope & Description</label>
+                      <textarea value={quoteDescription} onChange={(e) => setQuoteDescription(e.target.value)}
+                        placeholder="Diagnosis findings, parts required, labor estimate, travel costs..."
+                        rows={4}
+                        className="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm focus:outline-none focus:border-amber-500 resize-none" />
                     </div>
                   </div>
                 </>
@@ -594,14 +640,14 @@ export default function JobDispatch() {
                   className="flex-1 border border-gray-700 hover:border-gray-500 text-gray-300 font-semibold py-2.5 rounded-xl transition-colors">
                   Cancel
                 </button>
-                {step === 'offer' && selected.mechanic_offer_status !== 'pending' && selected.mechanic_offer_status !== 'accepted' && (
+                {modalStep === 'select_mechanic' && (
                   <button onClick={sendJobOffer} disabled={sending || !chosenMechanic}
                     className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-900 font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
                     <Zap className="w-4 h-4" />
                     {sending ? 'Sending...' : 'Send Job Offer to Mechanic'}
                   </button>
                 )}
-                {step === 'quote' && (
+                {modalStep === 'send_quote' && (
                   <button onClick={sendQuote} disabled={sending}
                     className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-900 font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
                     <Send className="w-4 h-4" />

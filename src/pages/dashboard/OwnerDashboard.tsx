@@ -46,9 +46,8 @@ interface ActiveBreakdown {
 }
 
 const DISPATCH_STEPS = [
-  { key: 'pending_admin_review', label: 'Admin Reviewing', icon: Clock },
+  { key: 'pending_admin_review', label: 'Reviewing Request', icon: Clock },
   { key: 'quote_sent', label: 'Quote Ready', icon: FileText },
-  { key: 'quote_accepted', label: 'Awaiting Payment', icon: CheckCircle },
   { key: 'paid', label: 'Payment Secured', icon: CheckCircle },
   { key: 'dispatched', label: 'Mechanic Deployed', icon: MapPin },
   { key: 'completed', label: 'Completed', icon: CheckCircle },
@@ -57,7 +56,6 @@ const DISPATCH_STEPS = [
 const STATUS_COLORS: Record<string, string> = {
   pending_admin_review: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
   quote_sent: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  quote_accepted: 'bg-orange-500/15 text-orange-300 border-orange-500/30',
   paid: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
   dispatched: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
   completed: 'bg-green-500/15 text-green-300 border-green-500/30',

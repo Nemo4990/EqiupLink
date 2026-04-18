@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, Wrench, MapPin, Clock, AlertTriangle, CheckCircle,
-  XCircle, ChevronRight, Briefcase,
+  XCircle, Briefcase, Navigation, Phone, User,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -23,9 +23,10 @@ interface BreakdownOffer {
   mechanic_offer_status: string | null;
   mechanic_offer_sent_at: string | null;
   dispatched_at: string | null;
+  owner_location_shared: boolean | null;
   quote_amount: number | null;
   created_at: string;
-  owner?: { name: string | null };
+  owner?: { name: string | null; phone: string | null };
 }
 
 const URGENCY_COLOR: Record<string, string> = {
@@ -58,7 +59,7 @@ export default function BreakdownOffers() {
     try {
       let query = supabase
         .from('breakdown_requests')
-        .select('*, owner:profiles!breakdown_requests_owner_id_fkey(name)')
+        .select('*, owner:profiles!breakdown_requests_owner_id_fkey(name, phone)')
         .eq('assigned_mechanic_id', profile.id)
         .order('created_at', { ascending: false });
 
@@ -108,14 +109,14 @@ export default function BreakdownOffers() {
             type: accept ? 'mechanic_accepted_job' : 'mechanic_declined_job',
             title: accept ? 'Mechanic Accepted the Job' : 'Mechanic Declined the Job',
             message: accept
-              ? `${profile!.name} accepted the job for ${offer.machine_type} at ${offer.location}. You can now call them.`
-              : `${profile!.name} declined the job for ${offer.machine_type} at ${offer.location}. Please reassign.`,
+              ? `${profile!.name} accepted the job for ${offer.machine_type} at ${offer.location}. You can now proceed to send a quote to the owner.`
+              : `${profile!.name} declined the job for ${offer.machine_type} at ${offer.location}. Please reassign another mechanic.`,
             data: { breakdown_id: offerId },
           });
         }
       }
 
-      toast.success(accept ? 'Job accepted! Admin will call you shortly.' : 'Job declined.');
+      toast.success(accept ? 'Job accepted! Admin will prepare and send a quote to the owner.' : 'Job declined.');
       await loadOffers();
     } catch (err) {
       console.error(err);
@@ -125,7 +126,8 @@ export default function BreakdownOffers() {
     }
   }
 
-  const pendingCount = activeTab === 'pending' ? offers.length : 0;
+  const isLocationVisible = (offer: BreakdownOffer) =>
+    offer.dispatch_status === 'dispatched' || offer.dispatch_status === 'completed' || offer.owner_location_shared;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white pt-20 pb-20">
@@ -172,7 +174,7 @@ export default function BreakdownOffers() {
                   {activeTab === 'pending' && (
                     <div className="bg-amber-500/10 border-b border-amber-700/30 px-5 py-2.5 flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-amber-400" />
-                      <span className="text-amber-300 text-sm font-semibold">New Job Offer — Response Required</span>
+                      <span className="text-amber-300 text-sm font-semibold">New Job Offer -- Response Required</span>
                     </div>
                   )}
                   {offer.mechanic_offer_status === 'accepted' && activeTab !== 'pending' && (
@@ -180,7 +182,13 @@ export default function BreakdownOffers() {
                       <CheckCircle className="w-4 h-4 text-emerald-400" />
                       <span className="text-emerald-300 text-sm font-semibold">Active Job</span>
                       {offer.dispatch_status === 'dispatched' && (
-                        <span className="ml-auto text-xs text-teal-300 bg-teal-900/40 px-2 py-0.5 rounded-full">Dispatched</span>
+                        <span className="ml-auto text-xs text-teal-300 bg-teal-900/40 px-2 py-0.5 rounded-full">Dispatched -- Head to Site</span>
+                      )}
+                      {offer.dispatch_status === 'paid' && (
+                        <span className="ml-auto text-xs text-emerald-300 bg-emerald-900/40 px-2 py-0.5 rounded-full">Payment Confirmed</span>
+                      )}
+                      {offer.dispatch_status === 'quote_sent' && (
+                        <span className="ml-auto text-xs text-blue-300 bg-blue-900/40 px-2 py-0.5 rounded-full">Awaiting Owner Payment</span>
                       )}
                     </div>
                   )}
@@ -212,7 +220,16 @@ export default function BreakdownOffers() {
                     <p className="text-sm text-gray-300 mb-4 line-clamp-3">{offer.description}</p>
 
                     <div className="grid grid-cols-2 gap-2 text-xs text-gray-400 mb-4">
-                      <div className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 flex-shrink-0" /> {offer.location || '—'}</div>
+                      {isLocationVisible(offer) ? (
+                        <div className="flex items-center gap-1.5 text-emerald-300">
+                          <Navigation className="w-3.5 h-3.5 flex-shrink-0" /> {offer.location || '—'}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-gray-500">
+                          <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="italic">Location revealed after dispatch</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 flex-shrink-0" />
                         {offer.mechanic_offer_sent_at
                           ? new Date(offer.mechanic_offer_sent_at).toLocaleDateString()
@@ -227,10 +244,31 @@ export default function BreakdownOffers() {
                       </div>
                     )}
 
-                    {offer.quote_amount && (
-                      <div className="bg-blue-950/40 border border-blue-900/40 rounded-xl px-4 py-2.5 mb-4">
-                        <span className="text-xs text-blue-300">Quoted Amount: </span>
-                        <span className="font-black text-blue-200">ETB {Number(offer.quote_amount).toLocaleString()}</span>
+                    {isLocationVisible(offer) && offer.dispatch_status === 'dispatched' && (
+                      <div className="bg-teal-950/40 border border-teal-800/40 rounded-xl p-4 mb-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Navigation className="w-4 h-4 text-teal-400" />
+                          <p className="text-teal-300 font-semibold text-sm">Site Location & Contact</p>
+                        </div>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                            <span className="text-white font-medium">{offer.location || '—'}</span>
+                          </div>
+                          {offer.owner && (
+                            <div className="flex items-center gap-2">
+                              <User className="w-3.5 h-3.5 text-gray-400" />
+                              <span className="text-gray-300">{offer.owner.name}</span>
+                            </div>
+                          )}
+                          {offer.owner?.phone && (
+                            <a href={`tel:${offer.owner.phone}`}
+                              className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors mt-1">
+                              <Phone className="w-3.5 h-3.5" />
+                              Call Owner: {offer.owner.phone}
+                            </a>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -253,9 +291,13 @@ export default function BreakdownOffers() {
                       </div>
                     )}
 
-                    {activeTab === 'accepted' && (
-                      <div className="bg-emerald-950/30 border border-emerald-800/30 rounded-xl p-3 text-sm text-emerald-300">
-                        Admin will contact you to coordinate arrival. Check your notifications.
+                    {activeTab === 'accepted' && offer.dispatch_status !== 'dispatched' && (
+                      <div className="bg-blue-950/30 border border-blue-800/30 rounded-xl p-3 text-sm text-blue-300">
+                        {offer.dispatch_status === 'quote_sent'
+                          ? 'Quote sent to owner. Waiting for owner to approve and pay.'
+                          : offer.dispatch_status === 'paid'
+                          ? 'Owner has paid. Admin will dispatch you shortly. Stand by.'
+                          : 'Your acceptance has been received. Admin is preparing a quote for the owner.'}
                       </div>
                     )}
                   </div>

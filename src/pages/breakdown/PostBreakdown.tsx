@@ -102,12 +102,28 @@ export default function PostBreakdown() {
     if (error) {
       toast.error('Failed to post request. Please try again.');
     } else {
-      await supabase.from('notifications').insert({
+      const ownerNotif = {
         user_id: profile.id,
         title: 'Breakdown Request Posted',
-        message: `Your breakdown request for ${formData.machine_model} has been posted and mechanics in your area have been notified.`,
+        message: `Your request for ${formData.machine_model} is under review. Our team will match you with a verified technician and send you a quote.`,
         type: 'success',
-      });
+      };
+
+      const { data: admins } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'admin')
+        .limit(5);
+
+      const adminNotifs = (admins || []).map(a => ({
+        user_id: a.id,
+        title: 'New Breakdown Request',
+        message: `${profile.name} posted a new ${formData.machine_type} (${formData.machine_model}) breakdown at ${formData.location}. Urgency: ${formData.urgency}.`,
+        type: 'job_request',
+        data: { breakdown_id: breakdown.id },
+      }));
+
+      await supabase.from('notifications').insert([ownerNotif, ...adminNotifs]);
 
       fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-breakdown-notifications`, {
         method: 'POST',
@@ -118,7 +134,7 @@ export default function PostBreakdown() {
         body: JSON.stringify({ breakdownId: breakdown.id }),
       }).catch(err => console.error('Failed to send notifications:', err));
 
-      toast.success('Breakdown request posted! Nearby mechanics will be notified.');
+      toast.success('Breakdown request posted! Our team will review and assign a technician.');
       navigate('/breakdown');
     }
     setLoading(false);
