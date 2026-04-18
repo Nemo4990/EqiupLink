@@ -106,24 +106,29 @@ export default function JobDispatch() {
     setStep(row.mechanic_offer_status === 'accepted' ? 'quote' : 'offer');
     setMechSearch('');
 
-    const { data } = await supabase
-      .from('profiles')
-      .select(`
-        id, name, location, phone, contact_phone,
-        profile:mechanic_verification_profiles(brand_experience, field_service_years, owns_service_truck, verification_status, specializations, current_location, contact_phone)
-      `)
-      .eq('role', 'mechanic')
-      .eq('is_approved', true)
-      .limit(80);
+    const { data, error } = await supabase
+      .from('mechanic_profiles')
+      .select('*, profile:profiles!mechanic_profiles_user_id_fkey(id, name, location, phone, contact_phone, role)')
+      .limit(300);
+
+    if (error) console.error('Failed to load mechanics:', error);
 
     const normalized: MechanicOption[] = (data || []).map((m: any) => ({
-      id: m.id,
-      name: m.name,
-      location: m.location,
-      phone: m.phone,
-      contact_phone: m.contact_phone,
-      rating: null,
-      profile: Array.isArray(m.profile) ? m.profile[0] : m.profile,
+      id: m.user_id,
+      name: m.profile?.name || 'Unnamed',
+      location: m.profile?.location || m.service_area || null,
+      phone: m.profile?.phone || null,
+      contact_phone: m.profile?.contact_phone || null,
+      rating: m.rating ?? null,
+      profile: {
+        brand_experience: m.supported_brands || [],
+        field_service_years: m.years_experience ?? null,
+        owns_service_truck: null,
+        verification_status: m.is_verified ? 'verified' : null,
+        specializations: m.specializations || [],
+        current_location: m.service_area || m.profile?.location || null,
+        contact_phone: m.profile?.contact_phone || null,
+      },
     }));
     setMechanics(normalized);
   }
