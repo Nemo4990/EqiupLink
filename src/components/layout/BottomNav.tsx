@@ -34,7 +34,12 @@ export default function BottomNav({ unreadCount }: BottomNavProps) {
       ]
     : [
         { to: '/dashboard', icon: Home, label: t.bottomNav.home, matchPaths: ['/dashboard'] },
-        { to: '/search', icon: Grid3X3, label: t.bottomNav.browse, matchPaths: ['/marketplace', '/search'] },
+        {
+          to: isOwner ? '/marketplace/parts' : '/search',
+          icon: Grid3X3,
+          label: t.bottomNav.browse,
+          matchPaths: isOwner ? ['/marketplace/parts', '/marketplace/rentals'] : ['/marketplace', '/search'],
+        },
         ...(isMechanic ? [{ to: '/jobs', icon: Briefcase, label: t.bottomNav.jobs, matchPaths: ['/jobs'] }] : []),
         ...(isOwner ? [{ to: '/my-requests', icon: Briefcase, label: t.bottomNav.requests, matchPaths: ['/my-requests', '/requests'] }] : []),
         { to: '/messages', icon: MessageSquare, label: t.bottomNav.messages, matchPaths: ['/messages'] },

@@ -8,10 +8,13 @@ import MechanicCard from '../components/cards/MechanicCard';
 import PartCard from '../components/cards/PartCard';
 import RentalCard from '../components/cards/RentalCard';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import { useAuth } from '../contexts/AuthContext';
 
 type ResultType = 'all' | 'mechanics' | 'parts' | 'rentals';
 
 export default function Search() {
+  const { profile } = useAuth();
+  const isOwner = profile?.role === 'owner' || profile?.role === 'customer';
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
   const [search, setSearch] = useState(query);
@@ -25,8 +28,12 @@ export default function Search() {
   const doSearch = async (q: string) => {
     setLoading(true);
 
+    const mechPromise = isOwner
+      ? Promise.resolve({ data: [] })
+      : supabase.from('mechanic_profiles').select('*, profile:profiles!mechanic_profiles_user_id_fkey(*)');
+
     const [mechRes, partsRes, rentalsRes] = await Promise.all([
-      supabase.from('mechanic_profiles').select('*, profile:profiles!mechanic_profiles_user_id_fkey(*)'),
+      mechPromise,
       supabase.from('parts_listings').select('*, supplier:profiles!parts_listings_supplier_id_fkey(name)').eq('is_active', true),
       supabase.from('equipment_rentals').select('*, provider:profiles!equipment_rentals_provider_id_fkey(name)').eq('is_available', true),
     ]);
@@ -77,8 +84,8 @@ export default function Search() {
     doSearch(search);
   };
 
-  const totalResults = mechanics.length + parts.length + rentals.length;
-  const showMechanics = filter === 'all' || filter === 'mechanics';
+  const totalResults = (isOwner ? 0 : mechanics.length) + parts.length + rentals.length;
+  const showMechanics = !isOwner && (filter === 'all' || filter === 'mechanics');
   const showParts = filter === 'all' || filter === 'parts';
   const showRentals = filter === 'all' || filter === 'rentals';
 
@@ -113,7 +120,7 @@ export default function Search() {
             <div className="mt-4 flex gap-2">
               {[
                 { id: 'all', label: 'All', count: totalResults },
-                { id: 'mechanics', label: 'Mechanics', count: mechanics.length, icon: Wrench },
+                ...(!isOwner ? [{ id: 'mechanics', label: 'Mechanics', count: mechanics.length, icon: Wrench }] : []),
                 { id: 'parts', label: 'Parts', count: parts.length, icon: Package },
                 { id: 'rentals', label: 'Rentals', count: rentals.length, icon: Truck },
               ].map((t) => (
@@ -142,7 +149,7 @@ export default function Search() {
             <h3 className="text-xl font-semibold text-white mb-2">No results for "{query}"</h3>
             <p className="text-gray-400">Try different keywords or browse categories</p>
             <div className="flex justify-center gap-3 mt-6">
-              <Link to="/marketplace/mechanics" className="text-yellow-400 hover:text-yellow-300">Browse Mechanics</Link>
+              {!isOwner && <Link to="/marketplace/mechanics" className="text-yellow-400 hover:text-yellow-300">Browse Mechanics</Link>}
               <Link to="/marketplace/parts" className="text-yellow-400 hover:text-yellow-300">Browse Parts</Link>
               <Link to="/marketplace/rentals" className="text-yellow-400 hover:text-yellow-300">Browse Rentals</Link>
             </div>

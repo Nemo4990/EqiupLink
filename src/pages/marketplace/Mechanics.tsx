@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search, Filter, Wrench, SlidersHorizontal, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -6,12 +7,22 @@ import { MechanicProfile } from '../../types';
 import MechanicCard from '../../components/cards/MechanicCard';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import { useLanguage } from '../../lib/i18n/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const SPECIALIZATIONS = ['hydraulics', 'engine', 'electrical', 'transmission', 'undercarriage', 'pneumatics'];
 const BRANDS = ['Caterpillar', 'Komatsu', 'John Deere', 'Hitachi', 'Volvo', 'Liebherr', 'JCB', 'Case', 'Doosan'];
 
 export default function Mechanics() {
   const { t } = useLanguage();
+  const { profile } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const role = profile?.role;
+    if (role === 'owner' || role === 'customer') {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [profile, navigate]);
   const [mechanics, setMechanics] = useState<MechanicProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
