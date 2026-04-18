@@ -3,17 +3,9 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import {
-  ArrowLeft,
-  Search,
-  ShieldCheck,
-  Send,
-  AlertTriangle,
-  MapPin,
-  Wrench,
-  Clock,
-  User,
-  CheckCircle2,
-  Filter,
+  ArrowLeft, Search, ShieldCheck, Send, AlertTriangle, MapPin,
+  Wrench, Clock, User, CheckCircle2, Filter, Phone, RefreshCw,
+  XCircle, CheckCircle, Zap,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -31,6 +23,7 @@ interface BreakdownRow {
   status: string | null;
   dispatch_status: string | null;
   assigned_mechanic_id: string | null;
+  mechanic_offer_status: string | null;
   quote_amount: number | null;
   quote_description: string | null;
   quote_sent_at: string | null;
@@ -43,12 +36,17 @@ interface MechanicOption {
   id: string;
   name: string | null;
   location: string | null;
+  phone: string | null;
+  contact_phone: string | null;
   rating: number | null;
   profile?: {
     brand_experience: string[] | null;
     field_service_years: number | null;
     owns_service_truck: boolean | null;
     verification_status: string | null;
+    specializations: string[] | null;
+    current_location: string | null;
+    contact_phone: string | null;
   } | null;
 }
 
@@ -60,22 +58,27 @@ const STATUS_TABS: { key: string; label: string; color: string }[] = [
   { key: 'completed', label: 'Completed', color: 'bg-gray-500' },
 ];
 
+const OFFER_BADGE: Record<string, { label: string; cls: string }> = {
+  pending:  { label: 'Offer Pending', cls: 'bg-amber-900/60 text-amber-300 border border-amber-700/40' },
+  accepted: { label: 'Mechanic Accepted', cls: 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/40' },
+  declined: { label: 'Declined - Re-assign', cls: 'bg-red-900/60 text-red-300 border border-red-700/40' },
+};
+
 export default function JobDispatch() {
   const { profile } = useAuth();
-  const [activeTab, setActiveTab] = useState<string>('pending_admin_review');
+  const [activeTab, setActiveTab] = useState('pending_admin_review');
   const [rows, setRows] = useState<BreakdownRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<BreakdownRow | null>(null);
   const [mechanics, setMechanics] = useState<MechanicOption[]>([]);
   const [mechSearch, setMechSearch] = useState('');
   const [chosenMechanic, setChosenMechanic] = useState<string | null>(null);
-  const [quoteAmount, setQuoteAmount] = useState<string>('');
-  const [quoteDescription, setQuoteDescription] = useState<string>('');
+  const [quoteAmount, setQuoteAmount] = useState('');
+  const [quoteDescription, setQuoteDescription] = useState('');
   const [sending, setSending] = useState(false);
+  const [step, setStep] = useState<'offer' | 'quote'>('offer');
 
-  useEffect(() => {
-    void loadRows();
-  }, [activeTab]);
+  useEffect(() => { void loadRows(); }, [activeTab]);
 
   async function loadRows() {
     setLoading(true);
@@ -100,19 +103,25 @@ export default function JobDispatch() {
     setChosenMechanic(row.assigned_mechanic_id);
     setQuoteAmount(row.quote_amount ? String(row.quote_amount) : '');
     setQuoteDescription(row.quote_description || '');
+    setStep(row.mechanic_offer_status === 'accepted' ? 'quote' : 'offer');
+    setMechSearch('');
 
     const { data } = await supabase
       .from('profiles')
       .select(`
-        id, name, location,
-        profile:mechanic_verification_profiles(brand_experience, field_service_years, owns_service_truck, verification_status)
+        id, name, location, phone, contact_phone,
+        profile:mechanic_verification_profiles(brand_experience, field_service_years, owns_service_truck, verification_status, specializations, current_location, contact_phone)
       `)
       .eq('role', 'mechanic')
-      .limit(60);
+      .eq('is_approved', true)
+      .limit(80);
+
     const normalized: MechanicOption[] = (data || []).map((m: any) => ({
       id: m.id,
       name: m.name,
       location: m.location,
+      phone: m.phone,
+      contact_phone: m.contact_phone,
       rating: null,
       profile: Array.isArray(m.profile) ? m.profile[0] : m.profile,
     }));
@@ -124,28 +133,24 @@ export default function JobDispatch() {
     if (!q) return mechanics;
     return mechanics.filter((m) => {
       const brands = (m.profile?.brand_experience || []).join(' ').toLowerCase();
+      const specs = (m.profile?.specializations || []).join(' ').toLowerCase();
       return (
         (m.name || '').toLowerCase().includes(q) ||
         (m.location || '').toLowerCase().includes(q) ||
-        brands.includes(q)
+        (m.profile?.current_location || '').toLowerCase().includes(q) ||
+        brands.includes(q) ||
+        specs.includes(q)
       );
     });
   }, [mechanics, mechSearch]);
 
-  async function sendQuote() {
-    if (!selected || !chosenMechanic) {
-      toast.error('Select a mechanic first');
-      return;
-    }
-    const amount = parseFloat(quoteAmount);
-    if (!amount || amount <= 0) {
-      toast.error('Enter a valid quote amount');
-      return;
-    }
-    if (!quoteDescription.trim()) {
-      toast.error('Add a quote description');
-      return;
-    }
+  const chosenMechanicData = useMemo(
+    () => mechanics.find(m => m.id === chosenMechanic),
+    [mechanics, chosenMechanic],
+  );
+
+  async function sendJobOffer() {
+    if (!selected || !chosenMechanic) { toast.error('Select a mechanic first'); return; }
     setSending(true);
     try {
       const { error } = await supabase
@@ -153,6 +158,41 @@ export default function JobDispatch() {
         .update({
           assigned_mechanic_id: chosenMechanic,
           admin_id: profile?.id,
+          mechanic_offer_status: 'pending',
+          mechanic_offer_sent_at: new Date().toISOString(),
+        })
+        .eq('id', selected.id);
+      if (error) throw error;
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      await fetch(`${supabaseUrl}/functions/v1/send-mechanic-job-offer`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ breakdownId: selected.id }),
+      });
+
+      toast.success('Job offer sent to mechanic');
+      setSelected(null);
+      await loadRows();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to send offer');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function sendQuote() {
+    if (!selected || !chosenMechanic) { toast.error('Select a mechanic first'); return; }
+    const amount = parseFloat(quoteAmount);
+    if (!amount || amount <= 0) { toast.error('Enter a valid quote amount'); return; }
+    if (!quoteDescription.trim()) { toast.error('Add a quote description'); return; }
+    setSending(true);
+    try {
+      const { error } = await supabase
+        .from('breakdown_requests')
+        .update({
           quote_amount: amount,
           quote_description: quoteDescription.trim(),
           dispatch_status: 'quote_sent',
@@ -181,41 +221,55 @@ export default function JobDispatch() {
     }
   }
 
+  async function resetOffer(row: BreakdownRow) {
+    try {
+      await supabase.from('breakdown_requests').update({
+        assigned_mechanic_id: null,
+        mechanic_offer_status: 'not_offered',
+        mechanic_offer_sent_at: null,
+      }).eq('id', row.id);
+      toast.success('Offer reset — you can reassign');
+      await loadRows();
+    } catch {
+      toast.error('Failed to reset offer');
+    }
+  }
+
   async function markDispatched(row: BreakdownRow) {
     try {
-      const { error } = await supabase
-        .from('breakdown_requests')
-        .update({
-          dispatch_status: 'dispatched',
-          dispatched_at: new Date().toISOString(),
-          status: 'in_progress',
-        })
-        .eq('id', row.id);
+      const { error } = await supabase.from('breakdown_requests').update({
+        dispatch_status: 'dispatched',
+        dispatched_at: new Date().toISOString(),
+        status: 'in_progress',
+      }).eq('id', row.id);
       if (error) throw error;
-      await supabase.from('notifications').insert([
-        {
-          user_id: row.owner_id,
-          type: 'breakdown_dispatched',
-          title: 'Mechanic Deployed',
-          message: 'A verified technician has been dispatched to your site.',
+
+      const notifs: any[] = [{
+        user_id: row.owner_id, type: 'breakdown_dispatched',
+        title: 'Mechanic Deployed',
+        message: 'A verified technician has been dispatched to your site.',
+        data: { breakdown_id: row.id },
+      }];
+      if (row.assigned_mechanic_id) {
+        notifs.push({
+          user_id: row.assigned_mechanic_id, type: 'job_assigned',
+          title: 'Job Confirmed — Head to Site',
+          message: 'The owner has paid. You are confirmed for this job.',
           data: { breakdown_id: row.id },
-        },
-        row.assigned_mechanic_id
-          ? {
-              user_id: row.assigned_mechanic_id,
-              type: 'job_assigned',
-              title: 'New Job Assigned',
-              message: 'You have been dispatched to a breakdown. Check your jobs queue.',
-              data: { breakdown_id: row.id },
-            }
-          : null,
-      ].filter(Boolean));
+        });
+      }
+      await supabase.from('notifications').insert(notifs);
       toast.success('Marked as dispatched');
       await loadRows();
     } catch (err) {
       console.error(err);
       toast.error('Update failed');
     }
+  }
+
+  function getMechanicPhone(row: BreakdownRow): string | null {
+    if (!chosenMechanicData) return null;
+    return chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone || null;
   }
 
   return (
@@ -228,25 +282,21 @@ export default function JobDispatch() {
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-3xl md:text-4xl font-black">Job Dispatch Center</h1>
-            <p className="text-gray-400 mt-1">Assign verified technicians and issue price quotes to machine owners.</p>
+            <p className="text-gray-400 mt-1">Assign technicians, send job offers, and issue price quotes.</p>
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-400">
-            <Filter className="w-4 h-4" />
-            <span>Ticket queue</span>
+            <Filter className="w-4 h-4" /><span>Ticket queue</span>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-6">
           {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
                 activeTab === tab.key
                   ? 'bg-white text-gray-900 border-white'
                   : 'bg-gray-900 text-gray-300 border-gray-800 hover:border-gray-700'
-              }`}
-            >
+              }`}>
               <span className={`inline-block w-2 h-2 rounded-full mr-2 ${tab.color}`}></span>
               {tab.label}
             </button>
@@ -262,100 +312,125 @@ export default function JobDispatch() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {rows.map((row) => (
-              <motion.div
-                key={row.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-gray-900 border border-gray-800 rounded-2xl p-5 hover:border-amber-600/60 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Wrench className="w-4 h-4 text-amber-400" />
-                      <span className="font-bold">{row.machine_type || 'Machine'} {row.machine_model || ''}</span>
+            {rows.map((row) => {
+              const offerBadge = row.mechanic_offer_status && row.mechanic_offer_status !== 'not_offered'
+                ? OFFER_BADGE[row.mechanic_offer_status] : null;
+              return (
+                <motion.div key={row.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  className="bg-gray-900 border border-gray-800 rounded-2xl p-5 hover:border-amber-600/60 transition-colors">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Wrench className="w-4 h-4 text-amber-400" />
+                        <span className="font-bold">{row.machine_type || 'Machine'} {row.machine_model || ''}</span>
+                      </div>
+                      <div className="text-xs text-gray-500 font-mono">#{row.id.slice(0, 8)}</div>
                     </div>
-                    <div className="text-xs text-gray-500 font-mono">#{row.id.slice(0, 8)}</div>
+                    <div className="flex flex-col items-end gap-1">
+                      {row.urgency && (
+                        <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                          row.urgency === 'critical' ? 'bg-red-900/60 text-red-300' :
+                          row.urgency === 'high' ? 'bg-orange-900/60 text-orange-300' :
+                          'bg-gray-800 text-gray-300'}`}>
+                          {row.urgency.toUpperCase()}
+                        </span>
+                      )}
+                      {offerBadge && (
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${offerBadge.cls}`}>
+                          {offerBadge.label}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  {row.urgency && (
-                    <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
-                      row.urgency === 'critical' ? 'bg-red-900/60 text-red-300' :
-                      row.urgency === 'high' ? 'bg-orange-900/60 text-orange-300' :
-                      'bg-gray-800 text-gray-300'
-                    }`}>
-                      {row.urgency.toUpperCase()}
-                    </span>
-                  )}
-                </div>
 
-                <p className="text-sm text-gray-300 line-clamp-2 mb-3">{row.description}</p>
+                  <p className="text-sm text-gray-300 line-clamp-2 mb-3">{row.description}</p>
 
-                <div className="grid grid-cols-2 gap-2 text-xs text-gray-400 mb-4">
-                  <div className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {row.location || '—'}</div>
-                  <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {new Date(row.created_at).toLocaleDateString()}</div>
-                  <div className="flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> {row.owner?.name || 'Owner'}</div>
-                  {row.machine_serial && <div className="flex items-center gap-1.5 font-mono">SN: {row.machine_serial}</div>}
-                </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-400 mb-4">
+                    <div className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {row.location || '—'}</div>
+                    <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {new Date(row.created_at).toLocaleDateString()}</div>
+                    <div className="flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> {row.owner?.name || 'Owner'}</div>
+                    {row.machine_serial && <div className="flex items-center gap-1.5 font-mono">SN: {row.machine_serial}</div>}
+                  </div>
 
-                {row.quote_amount ? (
-                  <div className="bg-blue-950/40 border border-blue-900/40 rounded-xl p-3 mb-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-blue-300">Quote</span>
-                      <span className="font-black text-blue-200">ETB {Number(row.quote_amount).toLocaleString()}</span>
+                  {row.quote_amount ? (
+                    <div className="bg-blue-950/40 border border-blue-900/40 rounded-xl p-3 mb-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-blue-300">Quote</span>
+                        <span className="font-black text-blue-200">ETB {Number(row.quote_amount).toLocaleString()}</span>
+                      </div>
+                      {row.mechanic?.name && (
+                        <div className="text-xs text-gray-400 mt-1">Assigned: {row.mechanic.name}</div>
+                      )}
                     </div>
-                    {row.mechanic?.name && (
-                      <div className="text-xs text-gray-400 mt-1">Assigned: {row.mechanic.name}</div>
+                  ) : null}
+
+                  {row.mechanic_offer_status === 'accepted' && row.mechanic?.name && (
+                    <div className="bg-emerald-950/40 border border-emerald-800/40 rounded-xl p-3 mb-3 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-emerald-300 font-semibold">{row.mechanic.name} accepted the job</p>
+                        <p className="text-xs text-gray-400">Now send a quote to the owner</p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 flex-wrap">
+                    {activeTab === 'pending_admin_review' && (
+                      <>
+                        {row.mechanic_offer_status === 'declined' ? (
+                          <button onClick={() => resetOffer(row)}
+                            className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-bold text-sm py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+                            <RefreshCw className="w-4 h-4" /> Re-assign Mechanic
+                          </button>
+                        ) : row.mechanic_offer_status === 'accepted' ? (
+                          <button onClick={() => openTicket(row)}
+                            className="flex-1 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-sm py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+                            <Send className="w-4 h-4" /> Send Quote to Owner
+                          </button>
+                        ) : (
+                          <button onClick={() => openTicket(row)}
+                            className="flex-1 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-sm py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+                            <Zap className="w-4 h-4" />
+                            {row.mechanic_offer_status === 'pending' ? 'View Offer' : 'Assign & Offer'}
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {activeTab === 'quote_sent' && (
+                      <button onClick={() => openTicket(row)}
+                        className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-bold text-sm py-2.5 rounded-xl transition-colors">
+                        Edit Quote
+                      </button>
+                    )}
+                    {activeTab === 'paid' && (
+                      <button onClick={() => markDispatched(row)}
+                        className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-gray-900 font-bold text-sm py-2.5 rounded-xl transition-colors">
+                        Mark Dispatched
+                      </button>
+                    )}
+                    {(activeTab === 'dispatched' || activeTab === 'completed') && row.mechanic?.name && (
+                      <div className="flex-1 text-sm text-gray-400 py-2 text-center">
+                        Technician: <span className="text-white font-semibold">{row.mechanic.name}</span>
+                      </div>
                     )}
                   </div>
-                ) : null}
-
-                <div className="flex gap-2">
-                  {activeTab === 'pending_admin_review' && (
-                    <button
-                      onClick={() => openTicket(row)}
-                      className="flex-1 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold text-sm py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Send className="w-4 h-4" /> Assign & Quote
-                    </button>
-                  )}
-                  {activeTab === 'quote_sent' && (
-                    <button
-                      onClick={() => openTicket(row)}
-                      className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-bold text-sm py-2.5 rounded-xl transition-colors"
-                    >
-                      Edit Quote
-                    </button>
-                  )}
-                  {activeTab === 'paid' && (
-                    <button
-                      onClick={() => markDispatched(row)}
-                      className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-gray-900 font-bold text-sm py-2.5 rounded-xl transition-colors"
-                    >
-                      Mark Dispatched
-                    </button>
-                  )}
-                  {(activeTab === 'dispatched' || activeTab === 'completed') && row.mechanic?.name && (
-                    <div className="flex-1 text-sm text-gray-400 py-2 text-center">
-                      Technician: <span className="text-white font-semibold">{row.mechanic.name}</span>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>
 
       {selected && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
-          >
+          <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
+            className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+
             <div className="sticky top-0 bg-gray-900 border-b border-gray-800 p-5 flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-black">Dispatch Ticket</h2>
+                <h2 className="text-xl font-black">
+                  {step === 'offer' ? 'Assign & Send Job Offer' : 'Send Quote to Owner'}
+                </h2>
                 <p className="text-xs text-gray-500 font-mono">#{selected.id.slice(0, 8)}</p>
               </div>
               <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-white">Close</button>
@@ -367,7 +442,7 @@ export default function JobDispatch() {
                   <div><span className="text-gray-500">Machine:</span> <span className="font-semibold">{selected.machine_type} {selected.machine_model}</span></div>
                   <div><span className="text-gray-500">Serial:</span> <span className="font-mono">{selected.machine_serial || '—'}</span></div>
                   <div><span className="text-gray-500">Location:</span> {selected.location}</div>
-                  <div><span className="text-gray-500">Urgency:</span> {selected.urgency}</div>
+                  <div><span className="text-gray-500">Urgency:</span> <span className={selected.urgency === 'critical' ? 'text-red-400' : selected.urgency === 'high' ? 'text-orange-400' : 'text-yellow-400'}>{selected.urgency}</span></div>
                 </div>
                 <div className="mt-3 pt-3 border-t border-gray-800">
                   <div className="text-gray-500 text-xs mb-1">Symptoms</div>
@@ -381,99 +456,153 @@ export default function JobDispatch() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold mb-2">Select Technician</label>
-                <div className="relative mb-3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                  <input
-                    value={mechSearch}
-                    onChange={(e) => setMechSearch(e.target.value)}
-                    placeholder="Search by name, city, or brand..."
-                    className="w-full pl-10 pr-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm focus:outline-none focus:border-amber-500"
-                  />
+              {step === 'offer' && selected.mechanic_offer_status === 'pending' && (
+                <div className="bg-amber-950/40 border border-amber-800/40 rounded-xl p-4 text-center">
+                  <p className="text-amber-300 font-semibold">Job offer sent — waiting for mechanic to respond.</p>
+                  <p className="text-xs text-gray-400 mt-1">The mechanic will receive an email and in-app notification to accept or decline.</p>
                 </div>
-                <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
-                  {filteredMechanics.length === 0 ? (
-                    <p className="text-sm text-gray-500 py-4 text-center">No technicians found</p>
-                  ) : (
-                    filteredMechanics.map((m) => {
-                      const verified = m.profile?.verification_status === 'verified';
-                      const active = chosenMechanic === m.id;
-                      return (
-                        <button
-                          key={m.id}
-                          onClick={() => setChosenMechanic(m.id)}
-                          className={`w-full text-left p-3 rounded-xl border transition-colors ${
-                            active ? 'bg-amber-500/10 border-amber-500' : 'bg-gray-950 border-gray-800 hover:border-gray-700'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold truncate">{m.name || 'Unnamed'}</span>
-                                {verified && <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
-                              </div>
-                              <div className="text-xs text-gray-500 mt-0.5">
-                                {m.location || '—'} {m.profile?.field_service_years ? `• ${m.profile.field_service_years}y field` : ''}
-                                {m.profile?.owns_service_truck ? ' • Service truck' : ''}
-                              </div>
-                              {m.profile?.brand_experience && m.profile.brand_experience.length > 0 && (
-                                <div className="flex flex-wrap gap-1 mt-1.5">
-                                  {m.profile.brand_experience.slice(0, 4).map((b) => (
-                                    <span key={b} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-300">{b}</span>
-                                  ))}
+              )}
+
+              {step === 'offer' && selected.mechanic_offer_status !== 'pending' && (
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Select Technician</label>
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <input value={mechSearch} onChange={(e) => setMechSearch(e.target.value)}
+                      placeholder="Search by name, city, brand, or specialization..."
+                      className="w-full pl-10 pr-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm focus:outline-none focus:border-amber-500" />
+                  </div>
+                  <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
+                    {filteredMechanics.length === 0 ? (
+                      <p className="text-sm text-gray-500 py-4 text-center">No technicians found</p>
+                    ) : (
+                      filteredMechanics.map((m) => {
+                        const verified = m.profile?.verification_status === 'verified';
+                        const active = chosenMechanic === m.id;
+                        return (
+                          <button key={m.id} onClick={() => setChosenMechanic(m.id)}
+                            className={`w-full text-left p-3 rounded-xl border transition-colors ${
+                              active ? 'bg-amber-500/10 border-amber-500' : 'bg-gray-950 border-gray-800 hover:border-gray-700'
+                            }`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold truncate">{m.name || 'Unnamed'}</span>
+                                  {verified && <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
                                 </div>
+                                <div className="text-xs text-gray-500 mt-0.5">
+                                  {m.profile?.current_location || m.location || '—'}
+                                  {m.profile?.field_service_years ? ` • ${m.profile.field_service_years}y field` : ''}
+                                  {m.profile?.owns_service_truck ? ' • Service truck' : ''}
+                                </div>
+                                {m.profile?.brand_experience && m.profile.brand_experience.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                    {m.profile.brand_experience.slice(0, 4).map((b) => (
+                                      <span key={b} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-300">{b}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                {m.profile?.specializations && m.profile.specializations.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {m.profile.specializations.slice(0, 3).map((s) => (
+                                      <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-300">{s}</span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              {(m.phone || m.contact_phone || m.profile?.contact_phone) && (
+                                <Phone className="w-4 h-4 text-gray-500 flex-shrink-0" />
                               )}
                             </div>
-                            <div className="text-right flex-shrink-0">
-                              <div className="text-amber-400 font-bold text-sm">{m.rating ? m.rating.toFixed(1) : '—'}</div>
-                              <div className="text-[10px] text-gray-500">rating</div>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="md:col-span-1">
-                  <label className="block text-sm font-semibold mb-2">Quote Amount (ETB)</label>
-                  <input
-                    type="number"
-                    value={quoteAmount}
-                    onChange={(e) => setQuoteAmount(e.target.value)}
-                    placeholder="0"
-                    className="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm focus:outline-none focus:border-amber-500"
-                  />
+              {step === 'offer' && selected.mechanic_offer_status === 'accepted' && (
+                <div className="bg-emerald-950/40 border border-emerald-800/40 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle className="w-5 h-5 text-emerald-400" />
+                    <p className="text-emerald-300 font-semibold">Mechanic accepted the job offer</p>
+                  </div>
+                  {chosenMechanicData && (
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <p className="text-white font-semibold">{chosenMechanicData.name}</p>
+                        {(chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone) && (
+                          <a
+                            href={`tel:${chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone}`}
+                            className="inline-flex items-center gap-2 mt-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
+                            <Phone className="w-4 h-4" />
+                            Call: {chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <button onClick={() => setStep('quote')}
+                    className="w-full mt-4 bg-amber-500 hover:bg-amber-400 text-gray-900 font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+                    <Send className="w-4 h-4" /> Proceed to Send Quote to Owner
+                  </button>
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold mb-2">Quote Description</label>
-                  <input
-                    value={quoteDescription}
-                    onChange={(e) => setQuoteDescription(e.target.value)}
-                    placeholder="Diagnosis, parts, labor estimate..."
-                    className="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-              </div>
+              )}
+
+              {step === 'quote' && (
+                <>
+                  {chosenMechanicData && (
+                    <div className="bg-gray-950 border border-gray-800 rounded-xl p-3 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500">Assigned Technician</p>
+                        <p className="text-white font-semibold">{chosenMechanicData.name}</p>
+                      </div>
+                      {(chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone) && (
+                        <a href={`tel:${chosenMechanicData.profile?.contact_phone || chosenMechanicData.contact_phone || chosenMechanicData.phone}`}
+                          className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors">
+                          <Phone className="w-3.5 h-3.5" />
+                          Call Mechanic
+                        </a>
+                      )}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="md:col-span-1">
+                      <label className="block text-sm font-semibold mb-2">Quote Amount (ETB)</label>
+                      <input type="number" value={quoteAmount} onChange={(e) => setQuoteAmount(e.target.value)}
+                        placeholder="0"
+                        className="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm focus:outline-none focus:border-amber-500" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold mb-2">Quote Description</label>
+                      <input value={quoteDescription} onChange={(e) => setQuoteDescription(e.target.value)}
+                        placeholder="Diagnosis, parts, labor estimate..."
+                        className="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-sm focus:outline-none focus:border-amber-500" />
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => setSelected(null)}
-                  className="flex-1 border border-gray-700 hover:border-gray-500 text-gray-300 font-semibold py-2.5 rounded-xl transition-colors"
-                >
+                <button onClick={() => setSelected(null)}
+                  className="flex-1 border border-gray-700 hover:border-gray-500 text-gray-300 font-semibold py-2.5 rounded-xl transition-colors">
                   Cancel
                 </button>
-                <button
-                  onClick={sendQuote}
-                  disabled={sending}
-                  className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-900 font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2"
-                >
-                  <Send className="w-4 h-4" />
-                  {sending ? 'Sending...' : 'Send Quote to Owner'}
-                </button>
+                {step === 'offer' && selected.mechanic_offer_status !== 'pending' && selected.mechanic_offer_status !== 'accepted' && (
+                  <button onClick={sendJobOffer} disabled={sending || !chosenMechanic}
+                    className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-900 font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    {sending ? 'Sending...' : 'Send Job Offer to Mechanic'}
+                  </button>
+                )}
+                {step === 'quote' && (
+                  <button onClick={sendQuote} disabled={sending}
+                    className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-gray-900 font-bold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+                    <Send className="w-4 h-4" />
+                    {sending ? 'Sending...' : 'Send Quote to Owner'}
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>

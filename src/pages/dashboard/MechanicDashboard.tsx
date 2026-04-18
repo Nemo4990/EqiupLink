@@ -5,7 +5,7 @@ import {
   Wrench, MessageSquare, Bell, ChevronRight, Crown,
   Wallet, TrendingUp, CreditCard, ArrowRight, BarChart3,
   Flame, Trophy, Star, Zap, Target, Award, CheckCircle,
-  Briefcase, Package
+  Briefcase, Package, AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -73,6 +73,7 @@ export default function MechanicDashboard() {
   const [rewards, setRewards] = useState<RewardData | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [openJobCount, setOpenJobCount] = useState(0);
+  const [pendingOfferCount, setPendingOfferCount] = useState(0);
   const [showStreakCelebration, setShowStreakCelebration] = useState(false);
 
   const isPro = profile?.subscription_tier === 'pro';
@@ -133,6 +134,10 @@ export default function MechanicDashboard() {
       setStreak(streakRes.data || null);
       setRewards(rewardsRes.data || null);
       setOpenJobCount(openJobsRes.count ?? 0);
+
+      const offersRes = await supabase.from('breakdown_requests').select('id', { count: 'exact' })
+        .eq('assigned_mechanic_id', profile.id).eq('mechanic_offer_status', 'pending');
+      setPendingOfferCount(offersRes.count ?? 0);
 
       if (leaderboardRes.data && leaderboardRes.data.length > 0) {
         const mechanicIds = leaderboardRes.data.map((e: Record<string, unknown>) => e.mechanic_id as string);
@@ -257,6 +262,22 @@ export default function MechanicDashboard() {
               </div>
             ))}
           </div>
+
+          {pendingOfferCount > 0 && (
+            <Link to="/breakdown/offers"
+              className="flex items-center gap-4 bg-amber-500/10 border border-amber-500/40 rounded-2xl p-4 hover:bg-amber-500/15 transition-colors group">
+              <div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-6 h-6 text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-amber-300 font-bold text-lg leading-tight">
+                  {pendingOfferCount} Job Offer{pendingOfferCount > 1 ? 's' : ''} Waiting
+                </p>
+                <p className="text-amber-400/70 text-sm">Admin has selected you for a breakdown repair. Accept or decline now.</p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-amber-400 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          )}
 
           {/* Competition Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
