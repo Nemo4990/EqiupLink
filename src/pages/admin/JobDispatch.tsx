@@ -35,14 +35,14 @@ interface BreakdownRow {
   quote_description: string | null;
   quote_sent_at: string | null;
   created_at: string;
-  owner?: { full_name: string | null; phone: string | null };
-  mechanic?: { full_name: string | null };
+  owner?: { name: string | null; phone: string | null };
+  mechanic?: { name: string | null };
 }
 
 interface MechanicOption {
   id: string;
-  full_name: string | null;
-  city: string | null;
+  name: string | null;
+  location: string | null;
   rating: number | null;
   profile?: {
     brand_experience: string[] | null;
@@ -82,7 +82,7 @@ export default function JobDispatch() {
     try {
       const { data, error } = await supabase
         .from('breakdown_requests')
-        .select('*, owner:profiles!breakdown_requests_owner_id_fkey(full_name, phone), mechanic:profiles!breakdown_requests_assigned_mechanic_id_fkey(full_name)')
+        .select('*, owner:profiles!breakdown_requests_owner_id_fkey(name, phone), mechanic:profiles!breakdown_requests_assigned_mechanic_id_fkey(name)')
         .eq('dispatch_status', activeTab)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -104,17 +104,16 @@ export default function JobDispatch() {
     const { data } = await supabase
       .from('profiles')
       .select(`
-        id, full_name, city, rating,
+        id, name, location,
         profile:mechanic_verification_profiles(brand_experience, field_service_years, owns_service_truck, verification_status)
       `)
       .eq('role', 'mechanic')
-      .order('rating', { ascending: false })
       .limit(60);
     const normalized: MechanicOption[] = (data || []).map((m: any) => ({
       id: m.id,
-      full_name: m.full_name,
-      city: m.city,
-      rating: m.rating,
+      name: m.name,
+      location: m.location,
+      rating: null,
       profile: Array.isArray(m.profile) ? m.profile[0] : m.profile,
     }));
     setMechanics(normalized);
@@ -126,8 +125,8 @@ export default function JobDispatch() {
     return mechanics.filter((m) => {
       const brands = (m.profile?.brand_experience || []).join(' ').toLowerCase();
       return (
-        (m.full_name || '').toLowerCase().includes(q) ||
-        (m.city || '').toLowerCase().includes(q) ||
+        (m.name || '').toLowerCase().includes(q) ||
+        (m.location || '').toLowerCase().includes(q) ||
         brands.includes(q)
       );
     });
@@ -294,7 +293,7 @@ export default function JobDispatch() {
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-400 mb-4">
                   <div className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {row.location || '—'}</div>
                   <div className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {new Date(row.created_at).toLocaleDateString()}</div>
-                  <div className="flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> {row.owner?.full_name || 'Owner'}</div>
+                  <div className="flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> {row.owner?.name || 'Owner'}</div>
                   {row.machine_serial && <div className="flex items-center gap-1.5 font-mono">SN: {row.machine_serial}</div>}
                 </div>
 
@@ -304,8 +303,8 @@ export default function JobDispatch() {
                       <span className="text-xs text-blue-300">Quote</span>
                       <span className="font-black text-blue-200">ETB {Number(row.quote_amount).toLocaleString()}</span>
                     </div>
-                    {row.mechanic?.full_name && (
-                      <div className="text-xs text-gray-400 mt-1">Assigned: {row.mechanic.full_name}</div>
+                    {row.mechanic?.name && (
+                      <div className="text-xs text-gray-400 mt-1">Assigned: {row.mechanic.name}</div>
                     )}
                   </div>
                 ) : null}
@@ -335,9 +334,9 @@ export default function JobDispatch() {
                       Mark Dispatched
                     </button>
                   )}
-                  {(activeTab === 'dispatched' || activeTab === 'completed') && row.mechanic?.full_name && (
+                  {(activeTab === 'dispatched' || activeTab === 'completed') && row.mechanic?.name && (
                     <div className="flex-1 text-sm text-gray-400 py-2 text-center">
-                      Technician: <span className="text-white font-semibold">{row.mechanic.full_name}</span>
+                      Technician: <span className="text-white font-semibold">{row.mechanic.name}</span>
                     </div>
                   )}
                 </div>
@@ -411,11 +410,11 @@ export default function JobDispatch() {
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
-                                <span className="font-semibold truncate">{m.full_name || 'Unnamed'}</span>
+                                <span className="font-semibold truncate">{m.name || 'Unnamed'}</span>
                                 {verified && <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
                               </div>
                               <div className="text-xs text-gray-500 mt-0.5">
-                                {m.city || '—'} {m.profile?.field_service_years ? `• ${m.profile.field_service_years}y field` : ''}
+                                {m.location || '—'} {m.profile?.field_service_years ? `• ${m.profile.field_service_years}y field` : ''}
                                 {m.profile?.owns_service_truck ? ' • Service truck' : ''}
                               </div>
                               {m.profile?.brand_experience && m.profile.brand_experience.length > 0 && (
