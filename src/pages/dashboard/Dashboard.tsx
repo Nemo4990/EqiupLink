@@ -13,6 +13,7 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner';
 import EmergencyRepairModal from '../../components/ui/EmergencyRepairModal';
 import SupplierDashboard from './SupplierDashboard';
 import MechanicDashboard from './MechanicDashboard';
+import OwnerDashboard from './OwnerDashboard';
 import { format, formatDistanceToNow } from 'date-fns';
 
 const URGENCY_COLORS: Record<string, string> = {
@@ -124,6 +125,7 @@ export default function Dashboard() {
 
   if (isSupplier) return <SupplierDashboard />;
   if (isMechanic) return <MechanicDashboard />;
+  if (isOwner) return <OwnerDashboard />;
   const isPro = profile?.subscription_tier === 'pro';
 
   const totalEarnings = commissions.reduce((s, c) => s + (c.job_amount - c.commission_amount), 0);

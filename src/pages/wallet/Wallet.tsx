@@ -405,6 +405,37 @@ export default function WalletPage() {
             </div>
 
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-white font-semibold text-sm">Ethiopian Payment Gateways</h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 uppercase tracking-wide">Coming Soon</span>
+              </div>
+              <p className="text-gray-500 text-xs mb-4 leading-relaxed">
+                Instant top-ups with local providers. Currently under integration.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { name: 'Telebirr', color: 'from-emerald-600/20 to-emerald-500/10', accent: 'text-emerald-300', border: 'border-emerald-800/40' },
+                  { name: 'Chapa', color: 'from-cyan-600/20 to-cyan-500/10', accent: 'text-cyan-300', border: 'border-cyan-800/40' },
+                  { name: 'CBEBirr', color: 'from-amber-600/20 to-amber-500/10', accent: 'text-amber-300', border: 'border-amber-800/40' },
+                  { name: 'SantimPay', color: 'from-rose-600/20 to-rose-500/10', accent: 'text-rose-300', border: 'border-rose-800/40' },
+                ].map(g => (
+                  <div
+                    key={g.name}
+                    className={`relative overflow-hidden border ${g.border} bg-gradient-to-br ${g.color} rounded-xl p-3 flex items-center gap-2`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg bg-gray-950 border border-gray-800 flex items-center justify-center ${g.accent} font-black text-sm`}>
+                      {g.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-white text-xs font-semibold truncate">{g.name}</p>
+                      <p className="text-gray-500 text-[10px]">Pending</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
               <h3 className="text-white font-semibold mb-3 text-sm">How Credits Work</h3>
               <ul className="space-y-3">
                 {[

@@ -55,6 +55,8 @@ import PostJob from './pages/jobs/PostJob';
 import MyJobs from './pages/jobs/MyJobs';
 import OwnerJobs from './pages/jobs/OwnerJobs';
 import JobMatching from './pages/admin/JobMatching';
+import JobDispatch from './pages/admin/JobDispatch';
+import QuoteReview from './pages/owner/QuoteReview';
 
 function IdleWarningModal() {
   const { idleWarning, idleSecondsLeft, resetIdleTimer, signOut } = useAuth();
@@ -161,6 +163,8 @@ function AppContent() {
         <Route path="/admin/announcements" element={<ProtectedRoute requiredRole="admin"><Announcements /></ProtectedRoute>} />
         <Route path="/admin/mechanic-verification" element={<ProtectedRoute requiredRole="admin"><MechanicVerificationDashboard /></ProtectedRoute>} />
         <Route path="/admin/job-matching" element={<ProtectedRoute requiredRole="admin"><JobMatching /></ProtectedRoute>} />
+        <Route path="/admin/dispatch" element={<ProtectedRoute requiredRole="admin"><JobDispatch /></ProtectedRoute>} />
+        <Route path="/owner/quote/:id" element={<ProtectedRoute><QuoteReview /></ProtectedRoute>} />
         <Route path="/forum" element={<ForumList />} />
         <Route path="/forum/:postId" element={<ForumThread />} />
         <Route path="/forum/new" element={<ProtectedRoute><NewForumPost /></ProtectedRoute>} />

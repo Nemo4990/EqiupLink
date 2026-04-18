@@ -1,713 +1,719 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, AlertCircle, Loader, Upload, ChevronRight, ChevronLeft } from 'lucide-react';
+import {
+  CheckCircle, AlertCircle, Loader, Upload, ChevronRight, ChevronLeft,
+  Wrench, GraduationCap, Briefcase, Phone, ShieldCheck, Award, Truck as TruckIcon
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
+const EQUIPMENT_BRANDS = [
+  'CAT', 'Komatsu', 'Hyundai', 'Doosan', 'JCB', 'Hitachi',
+  'Develon', 'XCMG', 'SDLG', 'Liugong', 'Volvo', 'Sany',
+];
+
+const EXPERTISE_OPTIONS = [
+  'Engine Repair', 'Transmission', 'Hydraulic Systems', 'Electric Systems',
+  'ECM Programming', 'CRC Diagnostics', 'Field Technology',
+  'Undercarriage Rebuild', 'Welding / Fabrication', 'Preventive Maintenance',
+];
+
+const DIAGNOSTIC_TOOLS = [
+  'CAT ET (Caterpillar)', 'Doosan Diagnostic Tool', 'Komatsu KOMTRAX',
+  'Volvo Diagnostic Tool', 'JCB Service Master', 'Hyundai Diagnostic Tool',
+  'XCMG Diagnostic Tool', 'Sany Diagnostic Tool', 'Generic OBD-II Scanner',
+  'Heavy Equipment Scanner', 'Multimeter', 'Pressure Gauge Kit',
+];
+
+const LICENSE_TYPES = [
+  'Automobile (Cat 1)', 'Light Vehicle (Cat 2)', 'Public Service (Cat 3)',
+  'Heavy Truck (Cat 4)', 'Heavy Equipment Operator', 'Multiple',
+];
+
 export default function MechanicRegistration() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [cvFile, setCvFile] = useState<File | null>(null);
-
-  const expertiseOptions = [
-    'Engine Repair',
-    'Transmission',
-    'Hydraulic Systems',
-    'Electric Systems',
-    'ECM Programming',
-    'CRC Diagnostics',
-    'Field Technology',
-    'Caterpillar Equipment',
-    'Hitachi Equipment',
-    'Doosan Equipment',
-    'Volvo Equipment',
-    'JCB Equipment',
-    'Komatsu Equipment',
-    'Hyundai Equipment',
-    'XCMG Equipment',
-    'Sany Equipment',
-    'Liugong Equipment',
-    'SDLG Equipment',
-  ];
-
-  const diagnosticToolsOptions = [
-    'CAT ET (Caterpillar)',
-    'Doosan Diagnostic Tool',
-    'Komatsu KOMTRAX',
-    'Volvo Diagnostic Tool',
-    'JCB Service Master',
-    'Hyundai Diagnostic Tool',
-    'XCMG Diagnostic Tool',
-    'Sany Diagnostic Tool',
-    'Generic OBD-II Scanner',
-    'Heavy Equipment Scanner',
-  ];
+  const [certFiles, setCertFiles] = useState<File[]>([]);
 
   const [formData, setFormData] = useState({
-    // Step 1: Basic Experience
-    experience_level: '',
+    full_name: profile?.name || '',
+    contact_phone: profile?.phone || profile?.contact_phone || '',
+    contact_email: profile?.email || profile?.contact_email || '',
+    contact_address: profile?.contact_address || '',
     years_experience: 0,
+    field_service_years: 0,
+    experience_level: '',
     current_location: '',
-
-    // Step 2: Education & Certifications
-    educational_status: '',
-    driving_license: '',
-    hands_on_experience: '',
-
-    // Step 3: Expertise & Equipment
+    brand_experience: [] as string[],
     expertise_areas: [] as string[],
     diagnostic_tools: [] as string[],
+    professional_certificates: [] as string[],
+    hands_on_experience: '',
+    driving_license: '',
+    license_type: '',
     owns_service_truck: false,
-
-    // Step 4: Employment & Willingness
     employment_status: '',
     company_name: '',
+    employment_duration: '',
     willing_travel: false,
-
-    // Step 5: Contact Information
-    contact_email: '',
-    contact_phone: '',
-    contact_address: '',
+    educational_status: '',
   });
 
-  const handleExpertiseToggle = (expertise: string) => {
+  const toggleArrayField = (field: keyof typeof formData, value: string) => {
+    setFormData((prev) => {
+      const arr = (prev[field] as string[]) || [];
+      return {
+        ...prev,
+        [field]: arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value],
+      };
+    });
+  };
+
+  const addCertificate = (name: string) => {
+    if (!name.trim()) return;
     setFormData((prev) => ({
       ...prev,
-      expertise_areas: prev.expertise_areas.includes(expertise)
-        ? prev.expertise_areas.filter((e) => e !== expertise)
-        : [...prev.expertise_areas, expertise],
+      professional_certificates: [...prev.professional_certificates, name.trim()],
     }));
   };
 
-  const handleToolToggle = (tool: string) => {
+  const removeCertificate = (idx: number) => {
     setFormData((prev) => ({
       ...prev,
-      diagnostic_tools: prev.diagnostic_tools.includes(tool)
-        ? prev.diagnostic_tools.filter((t) => t !== tool)
-        : [...prev.diagnostic_tools, tool],
+      professional_certificates: prev.professional_certificates.filter((_, i) => i !== idx),
     }));
   };
 
-  const handleCVUpload = async (file: File) => {
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user?.id}-cv-${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('mechanic-cvs')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('mechanic-cvs')
-        .getPublicUrl(fileName);
-
-      return urlData.publicUrl;
-    } catch (error) {
-      console.error('CV upload error:', error);
-      toast.error('Failed to upload CV');
+  const uploadCv = async (): Promise<string | null> => {
+    if (!cvFile || !user) return null;
+    const ext = cvFile.name.split('.').pop();
+    const path = `${user.id}/cv-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('mechanic-cvs').upload(path, cvFile, { upsert: true });
+    if (error) {
+      toast.error('CV upload failed');
       return null;
     }
-  };
-
-  const validateStep = (step: number): boolean => {
-    switch (step) {
-      case 1:
-        return !!formData.experience_level && formData.years_experience >= 0 && !!formData.current_location;
-      case 2:
-        return !!formData.educational_status && !!formData.driving_license && !!formData.hands_on_experience;
-      case 3:
-        return formData.expertise_areas.length > 0 && formData.diagnostic_tools.length > 0;
-      case 4:
-        return !!formData.employment_status && (formData.employment_status !== 'employed' || !!formData.company_name);
-      case 5:
-        return !!formData.contact_email && !!formData.contact_phone && !!formData.contact_address;
-      default:
-        return false;
-    }
+    const { data } = supabase.storage.from('mechanic-cvs').getPublicUrl(path);
+    return data?.publicUrl || null;
   };
 
   const handleSubmit = async () => {
-    if (!validateStep(5)) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    if (formData.expertise_areas.length === 0) {
-      toast.error('Please select at least one area of expertise');
-      return;
-    }
-
+    if (!user) return;
     setLoading(true);
     try {
-      let cvUrl = null;
-      if (cvFile) {
-        cvUrl = await handleCVUpload(cvFile);
-      }
+      const cvUrl = cvFile ? await uploadCv() : null;
 
-      const { data: existingProfile } = await supabase
+      const { error } = await supabase
         .from('mechanic_verification_profiles')
-        .select('id')
-        .eq('user_id', user?.id)
-        .maybeSingle();
-
-      if (existingProfile) {
-        const { error } = await supabase
-          .from('mechanic_verification_profiles')
-          .update({
-            experience_level: formData.experience_level,
-            years_experience: formData.years_experience,
-            current_location: formData.current_location,
-            educational_status: formData.educational_status,
-            driving_license: formData.driving_license,
-            hands_on_experience: formData.hands_on_experience,
-            expertise_areas: formData.expertise_areas,
-            diagnostic_tools: formData.diagnostic_tools,
-            owns_service_truck: formData.owns_service_truck,
-            employment_status: formData.employment_status,
-            company_name: formData.company_name || null,
-            willing_travel: formData.willing_travel,
-            contact_email: formData.contact_email,
-            contact_phone: formData.contact_phone,
-            contact_address: formData.contact_address,
-            cv_file_url: cvUrl || undefined,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('user_id', user?.id);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('mechanic_verification_profiles').insert({
-          user_id: user?.id,
+        .upsert({
+          user_id: user.id,
+          full_name: formData.full_name,
           experience_level: formData.experience_level,
           years_experience: formData.years_experience,
-          current_location: formData.current_location,
+          field_service_years: formData.field_service_years,
           educational_status: formData.educational_status,
           driving_license: formData.driving_license,
+          license_type: formData.license_type,
           hands_on_experience: formData.hands_on_experience,
+          current_location: formData.current_location,
           expertise_areas: formData.expertise_areas,
+          brand_experience: formData.brand_experience,
           diagnostic_tools: formData.diagnostic_tools,
+          professional_certificates: formData.professional_certificates,
           owns_service_truck: formData.owns_service_truck,
           employment_status: formData.employment_status,
-          company_name: formData.company_name || null,
+          company_name: formData.company_name,
+          employment_duration: formData.employment_duration,
           willing_travel: formData.willing_travel,
           contact_email: formData.contact_email,
           contact_phone: formData.contact_phone,
           contact_address: formData.contact_address,
-          cv_file_url: cvUrl,
-        });
+          verification_status: 'pending_verification',
+          verified_by_admin: false,
+          ...(cvUrl ? { cv_file_url: cvUrl } : {}),
+        }, { onConflict: 'user_id' });
 
-        if (error) throw error;
-      }
+      if (error) throw error;
 
-      toast.success('Registration complete! Your profile is under admin review.');
-      navigate('/dashboard', { replace: true });
-    } catch (error) {
-      console.error('Error submitting registration:', error);
-      toast.error('Failed to complete registration');
+      await supabase
+        .from('profiles')
+        .update({
+          name: formData.full_name,
+          contact_phone: formData.contact_phone,
+          contact_email: formData.contact_email,
+          contact_address: formData.contact_address,
+          location: formData.current_location,
+        })
+        .eq('id', user.id);
+
+      toast.success('Registration submitted! Your account is now Pending Verification.');
+      navigate('/dashboard');
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const steps = [
-    { num: 1, title: 'Experience' },
-    { num: 2, title: 'Education' },
-    { num: 3, title: 'Expertise' },
-    { num: 4, title: 'Employment' },
-    { num: 5, title: 'Contact' },
+  const STEPS = [
+    { n: 1, label: 'Personal', icon: Phone },
+    { n: 2, label: 'Experience', icon: Wrench },
+    { n: 3, label: 'Brands & Tools', icon: TruckIcon },
+    { n: 4, label: 'Certifications', icon: Award },
+    { n: 5, label: 'Employment', icon: Briefcase },
+    { n: 6, label: 'Review', icon: CheckCircle },
   ];
 
+  const canProceed = (): boolean => {
+    switch (currentStep) {
+      case 1:
+        return !!(formData.full_name && formData.contact_phone && formData.contact_email && formData.contact_address);
+      case 2:
+        return !!(formData.years_experience >= 0 && formData.experience_level && formData.current_location);
+      case 3:
+        return formData.brand_experience.length > 0;
+      case 4:
+        return true;
+      case 5:
+        return !!formData.employment_status;
+      default:
+        return true;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 pt-20 pb-16">
-      <div className="max-w-4xl mx-auto px-4">
-        <div className="mb-8">
-          <h1 className="text-4xl font-black text-white mb-2">Mechanic Professional Registration</h1>
-          <p className="text-gray-400">Complete your professional profile for admin verification</p>
+    <div className="min-h-screen bg-gray-950 pt-20 pb-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <ShieldCheck className="w-6 h-6 text-amber-400" />
+            <h1 className="text-2xl font-black text-white">Mechanic Verification</h1>
+          </div>
+          <p className="text-gray-400 text-sm">
+            Complete all sections to submit for admin verification. Your account will be marked <span className="text-amber-400 font-semibold">Pending Verification</span> until approved.
+          </p>
         </div>
 
-        {/* Progress Bar */}
-        <div className="mb-8 flex gap-2">
-          {steps.map((step) => (
-            <div key={step.num} className="flex-1">
-              <button
-                onClick={() => currentStep >= step.num && setCurrentStep(step.num)}
-                disabled={currentStep < step.num}
-                className={`w-full text-center py-3 rounded-lg font-medium transition-all ${
-                  currentStep === step.num
-                    ? 'bg-blue-600 text-white'
-                    : currentStep > step.num
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-800 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                <div className="text-xs">Step {step.num}</div>
-                <div className="text-sm font-semibold">{step.title}</div>
-              </button>
-            </div>
-          ))}
+        <div className="flex items-center justify-between mb-8 overflow-x-auto">
+          {STEPS.map((s, i) => {
+            const active = s.n === currentStep;
+            const done = s.n < currentStep;
+            return (
+              <div key={s.n} className="flex items-center flex-shrink-0">
+                <div className={`flex items-center gap-2 ${i > 0 ? 'ml-2' : ''}`}>
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors ${
+                      done
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
+                        : active
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                        : 'bg-gray-900 border-gray-700 text-gray-500'
+                    }`}
+                  >
+                    {done ? <CheckCircle className="w-4 h-4" /> : <s.icon className="w-4 h-4" />}
+                  </div>
+                  <span className={`hidden md:block text-xs font-medium ${active ? 'text-white' : 'text-gray-500'}`}>
+                    {s.label}
+                  </span>
+                </div>
+                {i < STEPS.length - 1 && (
+                  <div className={`hidden md:block w-8 h-0.5 mx-2 ${done ? 'bg-emerald-500/50' : 'bg-gray-800'}`} />
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8">
-          {/* Step 1: Experience */}
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
           {currentStep === 1 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-6">Professional Experience</h2>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Experience Level <span className="text-red-400">*</span>
-                </label>
-                <div className="space-y-2">
-                  {[
-                    { value: 'novice', label: 'Novice', desc: '0-2 years' },
-                    { value: 'intermediate', label: 'Intermediate', desc: '2-5 years' },
-                    { value: 'advanced', label: 'Advanced', desc: '5-10 years' },
-                    { value: 'expert', label: 'Expert', desc: '10+ years' },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setFormData((prev) => ({ ...prev, experience_level: opt.value }))}
-                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                        formData.experience_level === opt.value
-                          ? 'border-blue-500 bg-blue-500/10'
-                          : 'border-gray-700 bg-gray-800 hover:border-gray-600'
-                      }`}
-                    >
-                      <div className="font-semibold text-white">{opt.label}</div>
-                      <div className="text-sm text-gray-400">{opt.desc}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Total Years of Experience <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={formData.years_experience}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      years_experience: parseInt(e.target.value) || 0,
-                    }))
-                  }
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Current Location <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.current_location}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, current_location: e.target.value }))
-                  }
-                  placeholder="e.g., Addis Ababa, Dire Dawa, etc."
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => navigate('/auth/register', { replace: true })}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 rounded-lg transition"
-                >
-                  Back
-                </button>
-                <button
-                  onClick={() => validateStep(1) && setCurrentStep(2)}
-                  disabled={!validateStep(1)}
-                  className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-medium py-2.5 rounded-lg transition"
-                >
-                  Next <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Education & Certifications */}
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-6">Education & Certifications</h2>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Educational Status <span className="text-red-400">*</span>
-                </label>
-                <div className="space-y-2">
-                  {[
-                    { value: 'high_school', label: 'High School' },
-                    { value: 'diploma', label: 'Diploma/Certificate' },
-                    { value: 'bachelors', label: "Bachelor's Degree" },
-                    { value: 'masters', label: "Master's Degree" },
-                    { value: 'other', label: 'Other' },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setFormData((prev) => ({ ...prev, educational_status: opt.value }))}
-                      className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                        formData.educational_status === opt.value
-                          ? 'border-blue-500 bg-blue-500/10'
-                          : 'border-gray-700 bg-gray-800 hover:border-gray-600'
-                      }`}
-                    >
-                      <div className="font-medium text-white">{opt.label}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Driving License Status <span className="text-red-400">*</span>
-                </label>
-                <select
-                  value={formData.driving_license}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, driving_license: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">Select driving license type</option>
-                  <option value="none">No License</option>
-                  <option value="category_a">Category A (Motorcycle)</option>
-                  <option value="category_b">Category B (Car)</option>
-                  <option value="category_c">Category C (Truck)</option>
-                  <option value="category_d">Category D (Heavy Vehicle)</option>
-                  <option value="multiple">Multiple Categories</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Hands-on Experience Details <span className="text-red-400">*</span>
-                </label>
-                <textarea
-                  value={formData.hands_on_experience}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, hands_on_experience: e.target.value }))
-                  }
-                  placeholder="Describe your hands-on experience with machinery repairs, major projects completed, certifications, training courses, etc."
-                  rows={5}
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setCurrentStep(1)}
-                  className="flex-1 flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 rounded-lg transition"
-                >
-                  <ChevronLeft className="w-4 h-4" /> Back
-                </button>
-                <button
-                  onClick={() => validateStep(2) && setCurrentStep(3)}
-                  disabled={!validateStep(2)}
-                  className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-medium py-2.5 rounded-lg transition"
-                >
-                  Next <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Expertise & Tools */}
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-6">Areas of Expertise</h2>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Select Your Areas of Expertise <span className="text-red-400">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {expertiseOptions.map((expertise) => (
-                    <button
-                      key={expertise}
-                      onClick={() => handleExpertiseToggle(expertise)}
-                      className={`p-3 rounded-lg border-2 transition-all text-left font-medium ${
-                        formData.expertise_areas.includes(expertise)
-                          ? 'border-blue-500 bg-blue-500/10 text-blue-300'
-                          : 'border-gray-700 bg-gray-800 text-gray-300 hover:border-gray-600'
-                      }`}
-                    >
-                      {expertise}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Diagnostic Tools <span className="text-red-400">*</span>
-                </label>
-                <div className="space-y-2">
-                  {diagnosticToolsOptions.map((tool) => (
-                    <label key={tool} className="flex items-center gap-3 p-3 border-2 border-gray-700 rounded-lg hover:border-gray-600 transition cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.diagnostic_tools.includes(tool)}
-                        onChange={() => handleToolToggle(tool)}
-                        className="w-5 h-5 cursor-pointer"
-                      />
-                      <span className="text-white font-medium">{tool}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <label className="flex items-center gap-3 p-3 border-2 border-gray-700 rounded-lg hover:border-gray-600 transition">
-                <input
-                  type="checkbox"
-                  checked={formData.owns_service_truck}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, owns_service_truck: e.target.checked }))
-                  }
-                  className="w-5 h-5 cursor-pointer"
-                />
-                <span className="text-white font-medium">I own a service truck</span>
-              </label>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setCurrentStep(2)}
-                  className="flex-1 flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 rounded-lg transition"
-                >
-                  <ChevronLeft className="w-4 h-4" /> Back
-                </button>
-                <button
-                  onClick={() => validateStep(3) && setCurrentStep(4)}
-                  disabled={!validateStep(3)}
-                  className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-medium py-2.5 rounded-lg transition"
-                >
-                  Next <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 4: Employment */}
-          {currentStep === 4 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-6">Employment Status</h2>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  Employment Status <span className="text-red-400">*</span>
-                </label>
-                <div className="space-y-2">
-                  {[
-                    { value: 'employed', label: 'Employed' },
-                    { value: 'self-employed', label: 'Self-Employed' },
-                    { value: 'looking', label: 'Looking for Work' },
-                    { value: 'not-available', label: 'Not Available' },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setFormData((prev) => ({ ...prev, employment_status: opt.value }))}
-                      className={`w-full text-left p-3 rounded-lg border-2 transition-all ${
-                        formData.employment_status === opt.value
-                          ? 'border-blue-500 bg-blue-500/10'
-                          : 'border-gray-700 bg-gray-800 hover:border-gray-600'
-                      }`}
-                    >
-                      <div className="font-medium text-white">{opt.label}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {formData.employment_status === 'employed' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Company Name <span className="text-red-400">*</span>
-                  </label>
+            <div className="space-y-4">
+              <h2 className="text-white font-bold text-lg">Personal Information</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Full Name" required>
                   <input
                     type="text"
-                    value={formData.company_name}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, company_name: e.target.value }))
-                    }
-                    placeholder="Enter company name"
-                    className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                    className="input"
                   />
-                </div>
-              )}
+                </Field>
+                <Field label="Phone Number" required>
+                  <input
+                    type="tel"
+                    value={formData.contact_phone}
+                    onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
+                    className="input"
+                  />
+                </Field>
+                <Field label="Email" required>
+                  <input
+                    type="email"
+                    value={formData.contact_email}
+                    onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                    className="input"
+                  />
+                </Field>
+                <Field label="Address" required>
+                  <input
+                    type="text"
+                    value={formData.contact_address}
+                    onChange={(e) => setFormData({ ...formData, contact_address: e.target.value })}
+                    className="input"
+                    placeholder="City, Sub-city, Woreda"
+                  />
+                </Field>
+              </div>
+            </div>
+          )}
 
-              <label className="flex items-center gap-3 p-3 border-2 border-gray-700 rounded-lg hover:border-gray-600 transition">
-                <input
-                  type="checkbox"
-                  checked={formData.willing_travel}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, willing_travel: e.target.checked }))
-                  }
-                  className="w-5 h-5 cursor-pointer"
+          {currentStep === 2 && (
+            <div className="space-y-4">
+              <h2 className="text-white font-bold text-lg">Professional Experience</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Total Professional Experience (Years)" required>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.years_experience}
+                    onChange={(e) => setFormData({ ...formData, years_experience: parseInt(e.target.value || '0') })}
+                    className="input"
+                  />
+                </Field>
+                <Field label="Field Service Experience (Years)" required>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.field_service_years}
+                    onChange={(e) => setFormData({ ...formData, field_service_years: parseInt(e.target.value || '0') })}
+                    className="input"
+                  />
+                </Field>
+                <Field label="Experience Level" required>
+                  <select
+                    value={formData.experience_level}
+                    onChange={(e) => setFormData({ ...formData, experience_level: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">Select level</option>
+                    <option value="novice">Novice (0-2 yrs)</option>
+                    <option value="intermediate">Intermediate (3-5 yrs)</option>
+                    <option value="advanced">Advanced (6-10 yrs)</option>
+                    <option value="expert">Expert (10+ yrs)</option>
+                  </select>
+                </Field>
+                <Field label="Current Location" required>
+                  <input
+                    type="text"
+                    value={formData.current_location}
+                    onChange={(e) => setFormData({ ...formData, current_location: e.target.value })}
+                    className="input"
+                    placeholder="City / Region"
+                  />
+                </Field>
+                <Field label="Educational Status">
+                  <select
+                    value={formData.educational_status}
+                    onChange={(e) => setFormData({ ...formData, educational_status: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">Select</option>
+                    <option value="high_school">High School / TVET</option>
+                    <option value="diploma">Diploma</option>
+                    <option value="bachelor">Bachelor's Degree</option>
+                    <option value="master">Master's Degree</option>
+                  </select>
+                </Field>
+              </div>
+              <Field label="Hands-on Experience (Brief description)">
+                <textarea
+                  rows={3}
+                  value={formData.hands_on_experience}
+                  onChange={(e) => setFormData({ ...formData, hands_on_experience: e.target.value })}
+                  className="input"
+                  placeholder="Describe machines you've worked on, projects, etc."
                 />
-                <span className="text-white font-medium">Willing to travel for jobs</span>
-              </label>
+              </Field>
+            </div>
+          )}
+
+          {currentStep === 3 && (
+            <div className="space-y-5">
+              <div>
+                <h2 className="text-white font-bold text-lg mb-1">Brand-Specific Experience</h2>
+                <p className="text-gray-500 text-sm mb-3">Select all brands you have hands-on experience with.</p>
+                <div className="flex flex-wrap gap-2">
+                  {EQUIPMENT_BRANDS.map((b) => {
+                    const selected = formData.brand_experience.includes(b);
+                    return (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => toggleArrayField('brand_experience', b)}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                          selected
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                            : 'bg-gray-950 border-gray-700 text-gray-400 hover:border-gray-500'
+                        }`}
+                      >
+                        {b}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Upload CV (PDF or DOC) <span className="text-gray-500">(Optional)</span>
-                </label>
-                <label className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center cursor-pointer hover:border-gray-600 transition block">
-                  <div className="flex flex-col items-center gap-2">
-                    <Upload className="w-8 h-8 text-gray-500" />
-                    <div className="font-medium text-white">
-                      {cvFile ? cvFile.name : 'Click to upload CV'}
-                    </div>
-                    <div className="text-sm text-gray-500">PDF or DOC (Max 5MB)</div>
+                <h3 className="text-white font-bold mb-1">Expertise Areas</h3>
+                <p className="text-gray-500 text-sm mb-3">Select your core repair specialties.</p>
+                <div className="flex flex-wrap gap-2">
+                  {EXPERTISE_OPTIONS.map((e) => {
+                    const selected = formData.expertise_areas.includes(e);
+                    return (
+                      <button
+                        key={e}
+                        type="button"
+                        onClick={() => toggleArrayField('expertise_areas', e)}
+                        className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                          selected
+                            ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300'
+                            : 'bg-gray-950 border-gray-700 text-gray-400 hover:border-gray-500'
+                        }`}
+                      >
+                        {e}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-white font-bold mb-1">Diagnostic Tools Experience</h3>
+                <p className="text-gray-500 text-sm mb-3">Tools you are proficient in.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {DIAGNOSTIC_TOOLS.map((t) => {
+                    const selected = formData.diagnostic_tools.includes(t);
+                    return (
+                      <label
+                        key={t}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                          selected ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-gray-950 border-gray-800 hover:border-gray-700'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleArrayField('diagnostic_tools', t)}
+                          className="accent-emerald-500"
+                        />
+                        <span className="text-sm text-gray-200">{t}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 4 && (
+            <div className="space-y-5">
+              <h2 className="text-white font-bold text-lg">Certifications & Documents</h2>
+
+              <Field label="Professional Certificates">
+                <CertificateInput onAdd={addCertificate} />
+                {formData.professional_certificates.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {formData.professional_certificates.map((c, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-2 bg-amber-500/15 border border-amber-500/30 text-amber-300 px-3 py-1 rounded-full text-sm"
+                      >
+                        <Award className="w-3.5 h-3.5" />
+                        {c}
+                        <button
+                          type="button"
+                          onClick={() => removeCertificate(i)}
+                          className="text-amber-400 hover:text-white"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
                   </div>
+                )}
+              </Field>
+
+              <Field label="CV / Resume (PDF or DOC)">
+                <label className="flex items-center justify-center gap-2 border-2 border-dashed border-gray-700 hover:border-amber-500/50 rounded-xl p-6 cursor-pointer transition-colors">
+                  <Upload className="w-5 h-5 text-gray-500" />
+                  <span className="text-gray-400 text-sm">
+                    {cvFile ? cvFile.name : 'Click to upload CV (max 5MB)'}
+                  </span>
                   <input
                     type="file"
                     accept=".pdf,.doc,.docx"
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        if (file.size > 5 * 1024 * 1024) {
-                          toast.error('File size must be less than 5MB');
-                        } else {
-                          setCvFile(file);
-                        }
+                      const f = e.target.files?.[0];
+                      if (f && f.size > 5 * 1024 * 1024) {
+                        toast.error('Max 5MB');
+                        return;
                       }
+                      setCvFile(f || null);
                     }}
                     className="hidden"
                   />
                 </label>
-              </div>
+              </Field>
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setCurrentStep(3)}
-                  className="flex-1 flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 rounded-lg transition"
-                >
-                  <ChevronLeft className="w-4 h-4" /> Back
-                </button>
-                <button
-                  onClick={() => validateStep(4) && setCurrentStep(5)}
-                  disabled={!validateStep(4)}
-                  className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-medium py-2.5 rounded-lg transition"
-                >
-                  Next <ChevronRight className="w-4 h-4" />
-                </button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Driving License Status">
+                  <select
+                    value={formData.driving_license}
+                    onChange={(e) => setFormData({ ...formData, driving_license: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">Select</option>
+                    <option value="yes">Yes, I have a license</option>
+                    <option value="no">No</option>
+                    <option value="learner">Learner's Permit</option>
+                  </select>
+                </Field>
+                <Field label="License Type">
+                  <select
+                    value={formData.license_type}
+                    onChange={(e) => setFormData({ ...formData, license_type: e.target.value })}
+                    className="input"
+                    disabled={formData.driving_license !== 'yes'}
+                  >
+                    <option value="">Select type</option>
+                    {LICENSE_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
               </div>
             </div>
           )}
 
-          {/* Step 5: Contact Information */}
           {currentStep === 5 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-6">Contact Information</h2>
-                <p className="text-gray-400 text-sm mb-6">
-                  This information will be used by admins to verify and contact you regarding job opportunities
-                </p>
+            <div className="space-y-5">
+              <h2 className="text-white font-bold text-lg">Employment & Service Vehicle</h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Current Employment Status" required>
+                  <select
+                    value={formData.employment_status}
+                    onChange={(e) => setFormData({ ...formData, employment_status: e.target.value })}
+                    className="input"
+                  >
+                    <option value="">Select</option>
+                    <option value="employed">Employed (Full-time)</option>
+                    <option value="self-employed">Self-Employed</option>
+                    <option value="looking">Seeking Work</option>
+                    <option value="not-available">Not Available</option>
+                  </select>
+                </Field>
+                {formData.employment_status === 'employed' && (
+                  <>
+                    <Field label="Company Name">
+                      <input
+                        type="text"
+                        value={formData.company_name}
+                        onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+                        className="input"
+                      />
+                    </Field>
+                    <Field label="Duration of Employment">
+                      <input
+                        type="text"
+                        value={formData.employment_duration}
+                        onChange={(e) => setFormData({ ...formData, employment_duration: e.target.value })}
+                        className="input"
+                        placeholder="e.g. 3 years"
+                      />
+                    </Field>
+                  </>
+                )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Email Address <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="email"
-                  value={formData.contact_email}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, contact_email: e.target.value }))
-                  }
-                  placeholder="your.email@example.com"
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Phone Number <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="tel"
-                  value={formData.contact_phone}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, contact_phone: e.target.value }))
-                  }
-                  placeholder="+251 9 XX XXX XXXX"
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Contact Address <span className="text-red-400">*</span>
-                </label>
-                <textarea
-                  value={formData.contact_address}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, contact_address: e.target.value }))
-                  }
-                  placeholder="Street address, district, city, etc."
-                  rows={3}
-                  className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="bg-blue-900/20 border border-blue-800/50 rounded-lg p-4">
-                <div className="flex gap-3">
-                  <AlertCircle className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-blue-300">
-                    <p className="font-medium mb-1">Important</p>
-                    <p>
-                      Your profile will be thoroughly reviewed by our admin team. We verify all information including education, experience, certifications, and diagnostic tools expertise. Once verified, you'll be eligible to receive job requests.
+              <div className="bg-gray-950 border border-gray-800 rounded-xl p-4 space-y-3">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.owns_service_truck}
+                    onChange={(e) => setFormData({ ...formData, owns_service_truck: e.target.checked })}
+                    className="mt-1 accent-amber-500"
+                  />
+                  <div>
+                    <p className="text-white font-medium text-sm flex items-center gap-2">
+                      <TruckIcon className="w-4 h-4 text-amber-400" /> I own a service truck / pickup
+                    </p>
+                    <p className="text-gray-500 text-xs mt-0.5">
+                      Owners often prefer mechanics with their own service vehicle.
                     </p>
                   </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setCurrentStep(4)}
-                  className="flex-1 flex items-center justify-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-medium py-2.5 rounded-lg transition"
-                >
-                  <ChevronLeft className="w-4 h-4" /> Back
-                </button>
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white font-medium py-2.5 rounded-lg transition"
-                >
-                  {loading ? (
-                    <>
-                      <Loader className="w-4 h-4 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="w-4 h-4" />
-                      Complete Registration
-                    </>
-                  )}
-                </button>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.willing_travel}
+                    onChange={(e) => setFormData({ ...formData, willing_travel: e.target.checked })}
+                    className="mt-1 accent-amber-500"
+                  />
+                  <div>
+                    <p className="text-white font-medium text-sm">Willing to travel to job sites</p>
+                    <p className="text-gray-500 text-xs mt-0.5">
+                      Field service jobs may require travel outside your city.
+                    </p>
+                  </div>
+                </label>
               </div>
             </div>
           )}
+
+          {currentStep === 6 && (
+            <div className="space-y-4">
+              <h2 className="text-white font-bold text-lg">Review Your Submission</h2>
+              <p className="text-gray-400 text-sm">
+                Confirm your details before submitting. Your account will enter Pending Verification status.
+              </p>
+              <div className="bg-gray-950 border border-gray-800 rounded-xl p-5 space-y-3 text-sm">
+                <SummaryRow label="Full Name" value={formData.full_name} />
+                <SummaryRow label="Phone" value={formData.contact_phone} />
+                <SummaryRow label="Email" value={formData.contact_email} />
+                <SummaryRow label="Address" value={formData.contact_address} />
+                <SummaryRow label="Experience" value={`${formData.years_experience} yrs total / ${formData.field_service_years} yrs field`} />
+                <SummaryRow label="Brands" value={formData.brand_experience.join(', ') || '—'} />
+                <SummaryRow label="Expertise" value={formData.expertise_areas.join(', ') || '—'} />
+                <SummaryRow label="Diagnostic Tools" value={formData.diagnostic_tools.join(', ') || '—'} />
+                <SummaryRow label="Certificates" value={formData.professional_certificates.join(', ') || '—'} />
+                <SummaryRow label="Service Truck" value={formData.owns_service_truck ? 'Yes' : 'No'} />
+                <SummaryRow
+                  label="Employment"
+                  value={
+                    formData.employment_status === 'employed'
+                      ? `${formData.company_name || '—'} (${formData.employment_duration || '—'})`
+                      : formData.employment_status
+                  }
+                />
+                <SummaryRow label="License" value={formData.driving_license === 'yes' ? formData.license_type || 'Yes' : formData.driving_license || '—'} />
+                <SummaryRow label="CV File" value={cvFile?.name || 'Not uploaded'} />
+              </div>
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <p className="text-amber-200 text-xs leading-relaxed">
+                  Once submitted, an admin will review your profile. You will be notified as soon as you are verified.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-800">
+            <button
+              type="button"
+              onClick={() => setCurrentStep((s) => Math.max(1, s - 1))}
+              disabled={currentStep === 1}
+              className="flex items-center gap-1 text-gray-400 hover:text-white disabled:text-gray-700 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" /> Back
+            </button>
+            {currentStep < 6 ? (
+              <button
+                type="button"
+                onClick={() => canProceed() && setCurrentStep((s) => s + 1)}
+                disabled={!canProceed()}
+                className="flex items-center gap-1 bg-amber-400 hover:bg-amber-300 disabled:bg-gray-800 disabled:text-gray-500 text-gray-950 font-bold px-5 py-2.5 rounded-xl transition-colors"
+              >
+                Continue <ChevronRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading}
+                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 disabled:bg-gray-800 text-white font-bold px-5 py-2.5 rounded-xl transition-colors"
+              >
+                {loading ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                Submit for Verification
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      <style>{`
+        .input {
+          width: 100%;
+          background: #030712;
+          border: 1px solid #1f2937;
+          color: #f3f4f6;
+          border-radius: 0.5rem;
+          padding: 0.625rem 0.75rem;
+          font-size: 0.875rem;
+          outline: none;
+          transition: border-color .15s;
+        }
+        .input:focus { border-color: #f59e0b; }
+        .input:disabled { opacity: 0.5; cursor: not-allowed; }
+      `}</style>
+    </div>
+  );
+}
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-gray-300 text-xs font-semibold mb-1.5">
+        {label} {required && <span className="text-red-400">*</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-3 py-1.5 border-b border-gray-900 last:border-0">
+      <span className="text-gray-500 text-xs w-32 flex-shrink-0 uppercase tracking-wide">{label}</span>
+      <span className="text-gray-200 text-sm flex-1 break-words">{value || '—'}</span>
+    </div>
+  );
+}
+
+function CertificateInput({ onAdd }: { onAdd: (v: string) => void }) {
+  const [val, setVal] = useState('');
+  return (
+    <div className="flex gap-2">
+      <input
+        type="text"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            onAdd(val);
+            setVal('');
+          }
+        }}
+        placeholder="e.g. Caterpillar Service Technician Level 2"
+        className="input flex-1"
+      />
+      <button
+        type="button"
+        onClick={() => {
+          onAdd(val);
+          setVal('');
+        }}
+        className="bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-semibold px-4 rounded-lg text-sm transition-colors"
+      >
+        Add
+      </button>
     </div>
   );
 }
