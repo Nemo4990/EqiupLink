@@ -56,6 +56,9 @@ import MyJobs from './pages/jobs/MyJobs';
 import OwnerJobs from './pages/jobs/OwnerJobs';
 import JobMatching from './pages/admin/JobMatching';
 import JobDispatch from './pages/admin/JobDispatch';
+import EmailBroadcast from './pages/admin/EmailBroadcast';
+import DemoData from './pages/admin/DemoData';
+import AdminListingsPage from './pages/admin/AdminListingsPage';
 import QuoteReview from './pages/owner/QuoteReview';
 
 function IdleWarningModal() {
@@ -164,6 +167,9 @@ function AppContent() {
         <Route path="/admin/mechanic-verification" element={<ProtectedRoute requiredRole="admin"><MechanicVerificationDashboard /></ProtectedRoute>} />
         <Route path="/admin/job-matching" element={<ProtectedRoute requiredRole="admin"><JobMatching /></ProtectedRoute>} />
         <Route path="/admin/dispatch" element={<ProtectedRoute requiredRole="admin"><JobDispatch /></ProtectedRoute>} />
+        <Route path="/admin/email-broadcast" element={<ProtectedRoute requiredRole="admin"><EmailBroadcast /></ProtectedRoute>} />
+        <Route path="/admin/demo-data" element={<ProtectedRoute requiredRole="admin"><DemoData /></ProtectedRoute>} />
+        <Route path="/admin/listings" element={<ProtectedRoute requiredRole="admin"><AdminListingsPage /></ProtectedRoute>} />
         <Route path="/owner/quote/:id" element={<ProtectedRoute><QuoteReview /></ProtectedRoute>} />
         <Route path="/forum" element={<ForumList />} />
         <Route path="/forum/:postId" element={<ForumThread />} />
