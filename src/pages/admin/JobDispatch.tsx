@@ -224,9 +224,12 @@ export default function JobDispatch() {
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const headers = { 'Authorization': `Bearer ${anonKey}`, 'Content-Type': 'application/json' };
+
       await fetch(`${supabaseUrl}/functions/v1/send-quote-notification`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           breakdown_id: selected.id,
           owner_id: selected.owner_id,
@@ -240,7 +243,26 @@ export default function JobDispatch() {
         }),
       });
 
-      toast.success('Quote sent to owner via email and in-app notification');
+      if (chosenMechanic) {
+        const mechanic = mechanics.find(m => m.id === chosenMechanic);
+        await fetch(`${supabaseUrl}/functions/v1/send-mechanic-quote-email`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            breakdown_id: selected.id,
+            mechanic_id: chosenMechanic,
+            quote_amount: amount,
+            quote_expires_at: expiresAt,
+            machine_type: selected.machine_type,
+            machine_model: selected.machine_model,
+            location: selected.location,
+            urgency: selected.urgency,
+            owner_name: selected.owner?.name,
+          }),
+        });
+      }
+
+      toast.success('Quote sent to owner and mechanic via email');
       setSelected(null);
       await loadRows();
     } catch (err) {
