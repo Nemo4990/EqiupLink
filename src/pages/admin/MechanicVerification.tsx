@@ -46,20 +46,33 @@ export default function MechanicVerification() {
   const loadMechanics = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: mvpData, error } = await supabase
         .from('mechanic_verification_profiles')
-        .select(
-          `
-          *,
-          user:profiles!mechanic_verification_profiles_user_id_fkey(name, email)
-        `
-        )
+        .select('*')
         .eq('verified_by_admin', filter === 'verified')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      setMechanics(data || []);
+      const userIds = (mvpData || []).map((m: any) => m.user_id).filter(Boolean);
+      let profilesMap: Record<string, { name: string; email: string }> = {};
+
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, name, email')
+          .in('id', userIds);
+        profilesMap = Object.fromEntries(
+          (profilesData || []).map((p: any) => [p.id, { name: p.name, email: p.email }])
+        );
+      }
+
+      const merged = (mvpData || []).map((m: any) => ({
+        ...m,
+        user: profilesMap[m.user_id] || { name: 'Unknown', email: '' },
+      }));
+
+      setMechanics(merged);
     } catch (error) {
       console.error('Error loading mechanics:', error);
       toast.error('Failed to load mechanics');
